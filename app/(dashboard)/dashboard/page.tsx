@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/auth";
 import type { Database } from "@/lib/types/database";
 import ScoreRings from "./_components/ScoreRings";
 import BodyCompChart from "./_components/BodyCompChart";
 import DoseReminderBanner from "./_components/DoseReminderBanner";
+import ActivityCard from "./_components/ActivityCard";
+import RecentWorkoutsCard, { type WorkoutRow } from "./_components/RecentWorkoutsCard";
 
 type DoseRow = Database["public"]["Tables"]["doses"]["Row"];
 
@@ -38,6 +41,22 @@ const SCORES = [
 ];
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+
+function relativeTime(isoTs: string): string {
+  const mins = Math.floor((Date.now() - new Date(isoTs).getTime()) / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function toMiles(value: number, unit: string): number {
+  const u = (unit ?? "km").toLowerCase();
+  if (u === "mi" || u === "miles") return value;
+  if (u === "km") return value / 1.60934;
+  return value / 1609.344; // assume meters
+}
 
 function formatDate(d: Date) {
   return d.toLocaleDateString("en-US", {
@@ -73,6 +92,89 @@ export default async function DashboardPage() {
     .eq("user_id", userId)
     .order("date", { ascending: true })) as { data: DoseRow[] | null; error: unknown };
 
+  // ── Apple Health queries ────────────────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  const sevenDaysAgo = new Date(todayStart);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const [
+    { data: lastSyncRows },
+    { data: stepsRows },
+    { data: energyRows },
+    { data: distanceRows },
+    { data: hrRows },
+    { data: recentWorkoutRows },
+  ] = await Promise.all([
+    db.from("apple_health_metrics")
+      .select("created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1),
+    db.from("apple_health_metrics")
+      .select("value")
+      .eq("user_id", userId)
+      .in("metric_name", ["step_count", "Step Count", "Steps"])
+      .gte("timestamp", todayStart.toISOString())
+      .lt("timestamp", tomorrowStart.toISOString()),
+    db.from("apple_health_metrics")
+      .select("value")
+      .eq("user_id", userId)
+      .in("metric_name", ["active_energy", "Active Energy", "Active Energy Burned"])
+      .gte("timestamp", todayStart.toISOString())
+      .lt("timestamp", tomorrowStart.toISOString()),
+    db.from("apple_health_metrics")
+      .select("value, unit")
+      .eq("user_id", userId)
+      .in("metric_name", ["walking_running_distance", "Walking + Running Distance", "Walking Running Distance"])
+      .gte("timestamp", todayStart.toISOString())
+      .lt("timestamp", tomorrowStart.toISOString()),
+    db.from("apple_health_metrics")
+      .select("value")
+      .eq("user_id", userId)
+      .in("metric_name", ["heart_rate", "Heart Rate"])
+      .order("timestamp", { ascending: false })
+      .limit(1),
+    db.from("apple_health_workouts")
+      .select("id, timestamp, workout_type, duration_sec, distance_m, calories")
+      .eq("user_id", userId)
+      .gte("timestamp", sevenDaysAgo.toISOString())
+      .order("timestamp", { ascending: false })
+      .limit(50),
+  ]);
+
+  const lastSync: string | null =
+    (lastSyncRows as { created_at: string }[] | null)?.[0]?.created_at ?? null;
+
+  type MetricRow = { value: number };
+  const steps: number | null = (stepsRows as MetricRow[] | null)?.length
+    ? Math.round((stepsRows as MetricRow[]).reduce((s, r) => s + r.value, 0))
+    : null;
+  const activeEnergyCal: number | null = (energyRows as MetricRow[] | null)?.length
+    ? Math.round((energyRows as MetricRow[]).reduce((s, r) => s + r.value, 0))
+    : null;
+
+  type DistRow = { value: number; unit: string };
+  const distanceMiles: number | null = (distanceRows as DistRow[] | null)?.length
+    ? parseFloat(
+        (distanceRows as DistRow[])
+          .reduce((s, r) => s + toMiles(r.value, r.unit), 0)
+          .toFixed(2)
+      )
+    : null;
+
+  const heartRateBpm: number | null =
+    (hrRows as MetricRow[] | null)?.[0]?.value ?? null;
+
+  const recentWorkouts: WorkoutRow[] =
+    (recentWorkoutRows as WorkoutRow[] | null) ?? [];
+
+  // ── Dose data ────────────────────────────────────────────────────────────────
   const hasRealDoses = rawDoses && rawDoses.length > 0;
 
   const lastSite = hasRealDoses
@@ -118,22 +220,29 @@ export default async function DashboardPage() {
         <div style={{ fontFamily: "var(--font-syne)", fontSize: 26, fontWeight: 800 }}>
           {greeting}, <span style={{ color: "#4ecdc4" }}>Terry</span> 👋
         </div>
-        <div style={{ fontSize: 13, color: "#7a8299", marginTop: 3 }}>
-          🔥 14-day streak · 💉 Zepbound Wk {doseCount} · Next dose in{" "}
-          <span style={{ color: "#fd9644", fontWeight: 600 }}>
-            {(() => {
-              const [y, m, d] = (
-                hasRealDoses ? rawDoses[rawDoses.length - 1].date : "2026-04-22"
-              )
-                .split("-")
-                .map(Number);
-              const next = new Date(y, m - 1, d + 7);
-              const days = Math.ceil(
-                (next.getTime() - Date.now()) / 86_400_000
-              );
-              return days > 0 ? `${days} days` : "today";
-            })()}
+        <div style={{ fontSize: 13, color: "#7a8299", marginTop: 3, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+          <span>
+            🔥 14-day streak · 💉 Zepbound Wk {doseCount} · Next dose in{" "}
+            <span style={{ color: "#fd9644", fontWeight: 600 }}>
+              {(() => {
+                const [y, m, d] = (
+                  hasRealDoses ? rawDoses[rawDoses.length - 1].date : "2026-04-22"
+                )
+                  .split("-")
+                  .map(Number);
+                const next = new Date(y, m - 1, d + 7);
+                const days = Math.ceil(
+                  (next.getTime() - Date.now()) / 86_400_000
+                );
+                return days > 0 ? `${days} days` : "today";
+              })()}
+            </span>
           </span>
+          {lastSync && (
+            <span style={{ fontSize: 11, color: "#3a4460" }}>
+              📡 Last sync: {relativeTime(lastSync)}
+            </span>
+          )}
         </div>
       </div>
 
@@ -243,6 +352,14 @@ export default async function DashboardPage() {
             preservation. Recovery is high (88) and you haven&apos;t trained legs since Thursday.
           </div>
         </div>
+
+        {/* Activity Card — real Apple Health data */}
+        <ActivityCard
+          steps={steps}
+          activeEnergyCal={activeEnergyCal}
+          distanceMiles={distanceMiles}
+          heartRateBpm={heartRateBpm}
+        />
 
         {/* Daily Scores */}
         <div
@@ -442,6 +559,9 @@ export default async function DashboardPage() {
             labels={["Start", "Wk 1", "Wk 2", "Wk 3", "Wk 4"]}
           />
         </div>
+
+        {/* Recent Workouts — last 7 days from apple_health_workouts */}
+        <RecentWorkoutsCard workouts={recentWorkouts} />
 
       </div>
     </div>
