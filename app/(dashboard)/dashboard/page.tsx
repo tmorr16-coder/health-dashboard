@@ -209,11 +209,12 @@ export default async function DashboardPage() {
                 </div>
               </div>
             </div>
-            <button
+            <Link
+              href="/dashboard/workout"
               style={{
+                display: "inline-block",
                 padding: "10px 20px",
                 borderRadius: 10,
-                border: "none",
                 background: "linear-gradient(135deg, #a29bfe 0%, #4ecdc4 100%)",
                 color: "#0d1117",
                 fontFamily: "var(--font-syne)",
@@ -221,10 +222,11 @@ export default async function DashboardPage() {
                 fontWeight: 800,
                 cursor: "pointer",
                 letterSpacing: 0.5,
+                textDecoration: "none",
               }}
             >
               ▸ Start Tracked Session
-            </button>
+            </Link>
           </div>
           <div
             style={{
