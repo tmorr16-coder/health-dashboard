@@ -1,19 +1,14 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/auth";
 import type { Database } from "@/lib/types/database";
 import ScoreRings from "./_components/ScoreRings";
 import BodyCompChart from "./_components/BodyCompChart";
+import DoseReminderBanner from "./_components/DoseReminderBanner";
 
 type DoseRow = Database["public"]["Tables"]["doses"]["Row"];
 
-// ── mock fallback data ────────────────────────────────────────────────────────
-
-const MOCK_DOSES = [
-  { week: 1, date: "Apr 1",  dose: "5 mg", site: "Left abdomen",  time: "7:30 AM" },
-  { week: 2, date: "Apr 8",  dose: "5 mg", site: "Right abdomen", time: "7:45 AM" },
-  { week: 3, date: "Apr 15", dose: "5 mg", site: "Left thigh",    time: "8:00 AM" },
-  { week: 4, date: "Apr 22", dose: "5 mg", site: "Right thigh",   time: "7:15 AM" },
-];
+// ── constants ─────────────────────────────────────────────────────────────────
 
 const INJECTION_SITES = [
   "Left abdomen",
@@ -24,10 +19,13 @@ const INJECTION_SITES = [
   "Right arm",
 ];
 
+const MOCK_LAST_SITE = "Right thigh"; // week-4 mock
+const MOCK_DOSE_COUNT = 4;
+
 const MOCK_BODY_COMP = {
-  startWeight: 191.8, currentWeight: 184.2,
-  startMuscle: 140.4, currentMuscle: 142.1,
-  startBodyFat: 19.2, currentBodyFat: 16.8,
+  startWeight: 191.8,  currentWeight: 184.2,
+  startMuscle: 140.4,  currentMuscle: 142.1,
+  startBodyFat: 19.2,  currentBodyFat: 16.8,
   weeklyWeight: [191.8, 189.4, 187.1, 185.5, 184.2],
   weeklyMuscle: [140.4, 140.9, 141.3, 141.7, 142.1],
   weeklyFat:    [19.2,  18.6,  17.9,  17.3,  16.8],
@@ -56,6 +54,13 @@ function getGreeting() {
   return "Good evening";
 }
 
+function nextDoseDateFrom(lastDateStr: string): string {
+  // Parse as local date to avoid UTC midnight off-by-one
+  const [y, m, d] = lastDateStr.split("-").map(Number);
+  const next = new Date(y, m - 1, d + 7);
+  return next.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+}
+
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
@@ -68,20 +73,23 @@ export default async function DashboardPage() {
     .eq("user_id", userId)
     .order("date", { ascending: true })) as { data: DoseRow[] | null; error: unknown };
 
-  const doses =
-    rawDoses && rawDoses.length > 0
-      ? rawDoses.map((d, i) => ({
-          week: i + 1,
-          date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-          dose: `${d.dose_mg} mg`,
-          site: d.injection_site ?? "Unknown",
-          time: new Date(d.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
-        }))
-      : MOCK_DOSES;
+  const hasRealDoses = rawDoses && rawDoses.length > 0;
 
-  const lastSite = doses[doses.length - 1]?.site;
+  const lastSite = hasRealDoses
+    ? (rawDoses[rawDoses.length - 1].injection_site ?? "Unknown")
+    : MOCK_LAST_SITE;
+
+  const doseCount = hasRealDoses ? rawDoses.length : MOCK_DOSE_COUNT;
+
+  const nextDoseDate = hasRealDoses
+    ? nextDoseDateFrom(rawDoses[rawDoses.length - 1].date)
+    : "Tuesday, Apr 29"; // 7 days after mock week-4 date
+
+  const currentDoseMg = hasRealDoses
+    ? rawDoses[rawDoses.length - 1].dose_mg
+    : 5;
+
   const recommendedSite = INJECTION_SITES.find((s) => s !== lastSite) ?? "Left abdomen";
-  const doseCount = doses.length;
 
   const bc = MOCK_BODY_COMP;
   const weightLost   = (bc.startWeight  - bc.currentWeight).toFixed(1);
@@ -107,19 +115,25 @@ export default async function DashboardPage() {
         >
           {today}
         </div>
-        <div
-          style={{
-            fontFamily: "var(--font-syne)",
-            fontSize: 26,
-            fontWeight: 800,
-          }}
-        >
-          {greeting},{" "}
-          <span style={{ color: "#4ecdc4" }}>Terry</span> 👋
+        <div style={{ fontFamily: "var(--font-syne)", fontSize: 26, fontWeight: 800 }}>
+          {greeting}, <span style={{ color: "#4ecdc4" }}>Terry</span> 👋
         </div>
         <div style={{ fontSize: 13, color: "#7a8299", marginTop: 3 }}>
           🔥 14-day streak · 💉 Zepbound Wk {doseCount} · Next dose in{" "}
-          <span style={{ color: "#fd9644", fontWeight: 600 }}>3 days</span>
+          <span style={{ color: "#fd9644", fontWeight: 600 }}>
+            {(() => {
+              const [y, m, d] = (
+                hasRealDoses ? rawDoses[rawDoses.length - 1].date : "2026-04-22"
+              )
+                .split("-")
+                .map(Number);
+              const next = new Date(y, m - 1, d + 7);
+              const days = Math.ceil(
+                (next.getTime() - Date.now()) / 86_400_000
+              );
+              return days > 0 ? `${days} days` : "today";
+            })()}
+          </span>
         </div>
       </div>
 
@@ -134,88 +148,13 @@ export default async function DashboardPage() {
         }}
       >
 
-        {/* Dose Reminder Banner */}
-        <div
-          style={{
-            gridColumn: "1 / -1",
-            background: "linear-gradient(135deg, #2a1f3d 0%, #1a2035 100%)",
-            border: "1px solid #5b6ee180",
-            borderRadius: 16,
-            padding: "20px 22px",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 16,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: 14,
-                  background: "linear-gradient(135deg, #5b6ee1 0%, #a29bfe 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 28,
-                }}
-              >
-                💉
-              </div>
-              <div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: "#5b6ee1",
-                    letterSpacing: 2,
-                    textTransform: "uppercase",
-                    fontWeight: 700,
-                  }}
-                >
-                  Next Zepbound Dose
-                </div>
-                <div
-                  style={{
-                    fontFamily: "var(--font-syne)",
-                    fontSize: 22,
-                    fontWeight: 800,
-                    marginTop: 2,
-                  }}
-                >
-                  Tuesday, Apr 28{" "}
-                  <span style={{ color: "#7a8299", fontSize: 14, fontWeight: 400 }}>
-                    · 7:30 AM
-                  </span>
-                </div>
-                <div style={{ fontSize: 12, color: "#9aa5c4", marginTop: 2 }}>
-                  5 mg · Suggested site:{" "}
-                  <span style={{ color: "#4ecdc4" }}>{recommendedSite}</span>
-                </div>
-              </div>
-            </div>
-            <button
-              style={{
-                padding: "10px 18px",
-                borderRadius: 10,
-                border: "none",
-                cursor: "pointer",
-                background: "linear-gradient(135deg, #5b6ee1 0%, #a29bfe 100%)",
-                color: "#fff",
-                fontFamily: "var(--font-syne)",
-                fontSize: 13,
-                fontWeight: 700,
-              }}
-            >
-              ✓ Log Dose Now
-            </button>
-          </div>
-        </div>
+        {/* Dose Reminder Banner — Client Component (owns modal state) */}
+        <DoseReminderBanner
+          recommendedSite={recommendedSite}
+          doseCount={doseCount}
+          nextDoseDate={nextDoseDate}
+          defaultDoseMg={currentDoseMg}
+        />
 
         {/* AI Coach Card */}
         <div
@@ -330,151 +269,119 @@ export default async function DashboardPage() {
           <ScoreRings scores={SCORES} />
         </div>
 
-        {/* Zepbound Progress */}
-        <div
-          style={{
-            background: "linear-gradient(135deg, #161c2d 0%, #1a2035 100%)",
-            border: "1px solid #2a3350",
-            borderRadius: 16,
-            padding: "20px 22px",
-          }}
+        {/* Zepbound Progress — links to detail page */}
+        <Link
+          href="/dashboard/zepbound"
+          style={{ textDecoration: "none", color: "inherit" }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-            <div style={{ width: 3, height: 16, background: "#5b6ee1", borderRadius: 2 }} />
-            <span
-              style={{
-                fontFamily: "var(--font-syne)",
-                fontSize: 13,
-                fontWeight: 700,
-                color: "#c0c8e0",
-                letterSpacing: 1.2,
-                textTransform: "uppercase",
-              }}
-            >
-              Zepbound · Week {doseCount}
-            </span>
-          </div>
           <div
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
+            style={{
+              background: "linear-gradient(135deg, #161c2d 0%, #1a2035 100%)",
+              border: "1px solid #2a3350",
+              borderRadius: 16,
+              padding: "20px 22px",
+              height: "100%",
+              transition: "border-color 0.15s",
+            }}
           >
-            <div
-              style={{
-                background: "#0d1117",
-                borderRadius: 10,
-                padding: 12,
-                borderLeft: "3px solid #4ecdc4",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "#7a8299",
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                }}
-              >
-                Weight
-              </div>
-              <div
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <div style={{ width: 3, height: 16, background: "#5b6ee1", borderRadius: 2 }} />
+              <span
                 style={{
                   fontFamily: "var(--font-syne)",
-                  fontSize: 18,
+                  fontSize: 13,
                   fontWeight: 700,
-                  color: "#4ecdc4",
+                  color: "#c0c8e0",
+                  letterSpacing: 1.2,
+                  textTransform: "uppercase",
                 }}
               >
-                −{weightLost} lbs
-              </div>
+                Zepbound · Week {doseCount}
+              </span>
+              <span style={{ marginLeft: "auto", fontSize: 11, color: "#4a5568" }}>
+                View all →
+              </span>
             </div>
-            <div
-              style={{
-                background: "#0d1117",
-                borderRadius: 10,
-                padding: 12,
-                borderLeft: "3px solid #a29bfe",
-              }}
-            >
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div
                 style={{
-                  fontSize: 10,
-                  color: "#7a8299",
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
+                  background: "#0d1117",
+                  borderRadius: 10,
+                  padding: 12,
+                  borderLeft: "3px solid #4ecdc4",
                 }}
               >
-                Muscle
+                <div
+                  style={{ fontSize: 10, color: "#7a8299", textTransform: "uppercase", letterSpacing: 1 }}
+                >
+                  Weight
+                </div>
+                <div
+                  style={{ fontFamily: "var(--font-syne)", fontSize: 18, fontWeight: 700, color: "#4ecdc4" }}
+                >
+                  −{weightLost} lbs
+                </div>
               </div>
               <div
                 style={{
-                  fontFamily: "var(--font-syne)",
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: "#a29bfe",
+                  background: "#0d1117",
+                  borderRadius: 10,
+                  padding: 12,
+                  borderLeft: "3px solid #a29bfe",
                 }}
               >
-                +{muscleGained} lbs
-              </div>
-            </div>
-            <div
-              style={{
-                background: "#0d1117",
-                borderRadius: 10,
-                padding: 12,
-                borderLeft: "3px solid #ffe66d",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "#7a8299",
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                }}
-              >
-                Body Fat
+                <div
+                  style={{ fontSize: 10, color: "#7a8299", textTransform: "uppercase", letterSpacing: 1 }}
+                >
+                  Muscle
+                </div>
+                <div
+                  style={{ fontFamily: "var(--font-syne)", fontSize: 18, fontWeight: 700, color: "#a29bfe" }}
+                >
+                  +{muscleGained} lbs
+                </div>
               </div>
               <div
                 style={{
-                  fontFamily: "var(--font-syne)",
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: "#ffe66d",
+                  background: "#0d1117",
+                  borderRadius: 10,
+                  padding: 12,
+                  borderLeft: "3px solid #ffe66d",
                 }}
               >
-                −{fatLost}%
-              </div>
-            </div>
-            <div
-              style={{
-                background: "#0d1117",
-                borderRadius: 10,
-                padding: 12,
-                borderLeft: "3px solid #fd9644",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "#7a8299",
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                }}
-              >
-                Doses
+                <div
+                  style={{ fontSize: 10, color: "#7a8299", textTransform: "uppercase", letterSpacing: 1 }}
+                >
+                  Body Fat
+                </div>
+                <div
+                  style={{ fontFamily: "var(--font-syne)", fontSize: 18, fontWeight: 700, color: "#ffe66d" }}
+                >
+                  −{fatLost}%
+                </div>
               </div>
               <div
                 style={{
-                  fontFamily: "var(--font-syne)",
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: "#fd9644",
+                  background: "#0d1117",
+                  borderRadius: 10,
+                  padding: 12,
+                  borderLeft: "3px solid #fd9644",
                 }}
               >
-                {doseCount} ✓
+                <div
+                  style={{ fontSize: 10, color: "#7a8299", textTransform: "uppercase", letterSpacing: 1 }}
+                >
+                  Doses
+                </div>
+                <div
+                  style={{ fontFamily: "var(--font-syne)", fontSize: 18, fontWeight: 700, color: "#fd9644" }}
+                >
+                  {doseCount} ✓
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </Link>
 
         {/* Body Comp Chart */}
         <div
@@ -513,21 +420,15 @@ export default async function DashboardPage() {
             </div>
             <div style={{ display: "flex", gap: 12, fontSize: 11, color: "#7a8299" }}>
               <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span
-                  style={{ display: "inline-block", width: 12, height: 2, background: "#4ecdc4" }}
-                />
+                <span style={{ display: "inline-block", width: 12, height: 2, background: "#4ecdc4" }} />
                 Weight
               </span>
               <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span
-                  style={{ display: "inline-block", width: 12, height: 2, background: "#a29bfe" }}
-                />
+                <span style={{ display: "inline-block", width: 12, height: 2, background: "#a29bfe" }} />
                 Muscle
               </span>
               <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span
-                  style={{ display: "inline-block", width: 12, height: 2, background: "#ffe66d" }}
-                />
+                <span style={{ display: "inline-block", width: 12, height: 2, background: "#ffe66d" }} />
                 Body Fat
               </span>
             </div>
