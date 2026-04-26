@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Terry's Health Command Center</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@500;700&display=swap" />
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; background: #0d1117; color: #e8ecf8; }
+    button { font-family: inherit; }
+    input { font-family: inherit; }
+    @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.7 } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useRef } = React;
+
+    // === MOCK DATA ===
+    const initialDoseLog = [
+      { week: 1, date: "Apr 1", dose: "5 mg", site: "Left abdomen", time: "7:30 AM", taken: true },
+      { week: 2, date: "Apr 8", dose: "5 mg", site: "Right abdomen", time: "7:45 AM", taken: true },
+      { week: 3, date: "Apr 15", dose: "5 mg", site: "Left thigh", time: "8:00 AM", taken: true },
+      { week: 4, date: "Apr 22", dose: "5 mg", site: "Right thigh", time: "7:15 AM", taken: true },
+    ];
+
+    const exerciseLibrary = [
+      {
+        name: "Back Squat",
+        target: { sets: 4, reps: 6, weight: 185 },
+        lastSession: { date: "Apr 18", sets: [{ reps: 6, weight: 175, rpe: 7 }, { reps: 6, weight: 175, rpe: 7 }, { reps: 6, weight: 180, rpe: 8 }, { reps: 5, weight: 180, rpe: 9 }] },
+        restSec: 180,
+        cues: ["Brace core before unrack", "Knees track over toes", "Drive through heels"],
+        muscles: ["Quads", "Glutes", "Hamstrings", "Core"],
+      },
+      {
+        name: "Romanian Deadlift",
+        target: { sets: 4, reps: 8, weight: 165 },
+        lastSession: { date: "Apr 18", sets: [{ reps: 8, weight: 155, rpe: 7 }, { reps: 8, weight: 160, rpe: 8 }, { reps: 8, weight: 160, rpe: 8 }, { reps: 7, weight: 165, rpe: 9 }] },
+        restSec: 150,
+        cues: ["Hinge at hips", "Bar stays close to legs", "Feel hamstring stretch"],
+        muscles: ["Hamstrings", "Glutes", "Lower back"],
+      },
+      {
+        name: "Walking Lunges",
+        target: { sets: 3, reps: 10, weight: 35 },
+        lastSession: { date: "Apr 18", sets: [{ reps: 10, weight: 30, rpe: 7 }, { reps: 10, weight: 30, rpe: 7 }, { reps: 10, weight: 35, rpe: 8 }] },
+        restSec: 120,
+        cues: ["Step long, knee 90°", "Torso upright", "Drive off front heel"],
+        muscles: ["Quads", "Glutes"],
+      },
+      {
+        name: "Calf Raises",
+        target: { sets: 3, reps: 15, weight: 90 },
+        lastSession: { date: "Apr 18", sets: [{ reps: 15, weight: 85, rpe: 7 }, { reps: 15, weight: 85, rpe: 8 }, { reps: 15, weight: 90, rpe: 8 }] },
+        restSec: 90,
+        cues: ["Full range of motion", "Pause at top", "Slow eccentric"],
+        muscles: ["Calves"],
+      },
+    ];
+
+    const z = {
+      weekOnMed: 4, currentDose: "5 mg", nextDose: "Tuesday, Apr 28",
+      startWeight: 191.8, currentWeight: 184.2,
+      startMuscle: 140.4, currentMuscle: 142.1,
+      startBodyFat: 19.2, currentBodyFat: 16.8,
+      weeklyWeight: [191.8, 189.4, 187.1, 185.5, 184.2],
+      weeklyMuscle: [140.4, 140.9, 141.3, 141.7, 142.1],
+      weeklyFat: [19.2, 18.6, 17.9, 17.3, 16.8],
+      proteinTarget: 165, proteinAvg: 142,
+    };
+
+    const aiSuggestions = [
+      { type: "running", name: "Easy Base Run", duration: "30–45 min", intensity: "Zone 2", reason: "Recovery is high (88) and you ran hard yesterday. An easy Zone 2 run today supports aerobic base without compromising tomorrow's long run." },
+      { type: "resistance", name: "Lower Body Power", duration: "45–55 min", intensity: "Heavy", reason: "You're 4 weeks into Zepbound — lower body resistance training is critical for muscle preservation. You haven't done legs since Thursday." },
+      { type: "biking", name: "Endurance Ride", duration: "60–90 min", intensity: "Zone 2", reason: "Tomorrow's long run is 6.5mi. An easy spin today loosens legs and primes blood flow without fatigue." },
+    ];
+
+    const suggestNext = (lastSession, target) => {
+      if (!lastSession) return target;
+      const lastSet = lastSession.sets[lastSession.sets.length - 1];
+      const allHitTarget = lastSession.sets.every(s => s.reps >= target.reps && s.rpe <= 8);
+      if (allHitTarget) return { ...target, weight: lastSet.weight + 5, hint: "↑ All sets crushed at RPE ≤8 — bump weight 5 lbs" };
+      const someHigh = lastSession.sets.some(s => s.rpe >= 9);
+      if (someHigh) return { ...target, weight: lastSet.weight, hint: "→ Hold weight — last session was at limit (RPE 9)" };
+      return { ...target, weight: lastSet.weight + 2.5, hint: "↑ Small bump — moderate effort last time" };
+    };
+
+    // === COMPONENTS ===
+    const Card = ({ children, style = {} }) => (
+      <div style={{
+        background: "linear-gradient(135deg, #161c2d 0%, #1a2035 100%)",
+        border: "1px solid #2a3350", borderRadius: 16, padding: "20px 22px", ...style
+      }}>{children}</div>
+    );
+
+    const CardTitle = ({ children, accent }) => (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <div style={{ width: 3, height: 16, background: accent, borderRadius: 2 }} />
+        <span style={{ fontFamily: "'Syne', sans-serif", fontSize: 13, fontWeight: 700, color: "#c0c8e0", letterSpacing: 1.2, textTransform: "uppercase" }}>{children}</span>
+      </div>
+    );
+
+    const Ring = ({ value, max, size, stroke, color, children }) => {
+      const r = (size - stroke) / 2;
+      const circ = 2 * Math.PI * r;
+      const pct = Math.min(value / max, 1);
+      const [animated, setAnimated] = useState(0);
+      useEffect(() => { const t = setTimeout(() => setAnimated(pct), 300); return () => clearTimeout(t); }, [pct]);
+      return (
+        <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#1e2433" strokeWidth={stroke} />
+          <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
+            strokeDasharray={circ} strokeDashoffset={circ * (1 - animated)}
+            style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1)" }} />
+          <foreignObject x={0} y={0} width={size} height={size} style={{ transform: "rotate(90deg)" }}>
+            <div style={{ width: size, height: size, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>{children}</div>
+          </foreignObject>
+        </svg>
+      );
+    };
+
+    const TripleLineChart = ({ weight, muscle, fat, labels }) => {
+      const height = 160; const width = 100;
+      const norm = (data) => {
+        const max = Math.max(...data); const min = Math.min(...data);
+        return data.map(v => height - ((v - min) / (max - min + 0.01)) * (height - 30) - 15);
+      };
+      const wY = norm(weight); const mY = norm(muscle); const fY = norm(fat);
+      const xStep = width / (weight.length - 1);
+      const toPath = (yArr) => yArr.map((y, i) => `${i * xStep},${y}`).join(" ");
+      return (
+        <div>
+          <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ width: "100%", height: 160 }}>
+            <polyline points={toPath(wY)} fill="none" stroke="#4ecdc4" strokeWidth="1.2" strokeLinecap="round" />
+            <polyline points={toPath(mY)} fill="none" stroke="#a29bfe" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="2,2" />
+            <polyline points={toPath(fY)} fill="none" stroke="#ffe66d" strokeWidth="1.2" strokeLinecap="round" strokeDasharray="3,2" />
+            {wY.map((y, i) => <circle key={`w${i}`} cx={i * xStep} cy={y} r="1.4" fill="#4ecdc4" />)}
+            {mY.map((y, i) => <circle key={`m${i}`} cx={i * xStep} cy={y} r="1.4" fill="#a29bfe" />)}
+          </svg>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, padding: "0 4px" }}>
+            {labels.map((l, i) => <span key={i} style={{ fontSize: 10, color: "#4a5568" }}>{l}</span>)}
+          </div>
+        </div>
+      );
+    };
+
+    // === POST-WORKOUT SUMMARY ===
+    const PostWorkoutSummary = ({ exercises, setLogs, sessionElapsed, onDone }) => {
+      const formatTime = (sec) => `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, "0")}`;
+
+      // Compute aggregate stats
+      const allSets = setLogs.flat().filter(s => s !== null);
+      const totalVolume = allSets.reduce((sum, s) => sum + (s.reps * s.weight), 0);
+      const totalReps = allSets.reduce((sum, s) => sum + s.reps, 0);
+      const avgRpe = (allSets.reduce((sum, s) => sum + s.rpe, 0) / allSets.length).toFixed(1);
+      const estCalories = Math.round((sessionElapsed / 60) * 6.5);
+
+      // Last session totals for comparison
+      const lastVolume = exercises.reduce((sum, ex) =>
+        sum + ex.lastSession.sets.reduce((s, set) => s + (set.reps * set.weight), 0), 0);
+      const volumeDelta = totalVolume - lastVolume;
+      const volumeDeltaPct = ((volumeDelta / lastVolume) * 100).toFixed(1);
+
+      // Per-exercise breakdown with PR detection
+      const exerciseBreakdown = exercises.map((ex, i) => {
+        const thisSets = setLogs[i].filter(s => s !== null);
+        const thisVolume = thisSets.reduce((sum, s) => sum + (s.reps * s.weight), 0);
+        const lastVol = ex.lastSession.sets.reduce((s, set) => s + (set.reps * set.weight), 0);
+        const delta = thisVolume - lastVol;
+        const isPR = delta > 0;
+        const topSet = thisSets.reduce((max, s) => (s.weight * s.reps > max.weight * max.reps ? s : max), thisSets[0]);
+        return { name: ex.name, thisVolume, lastVol, delta, isPR, topSet, sets: thisSets, muscles: ex.muscles };
+      });
+
+      const prCount = exerciseBreakdown.filter(e => e.isPR).length;
+
+      // Muscle groups worked
+      const muscleGroups = [...new Set(exercises.flatMap(ex => ex.muscles))];
+
+      return (
+        <div style={{ minHeight: "100vh", padding: "20px 24px", maxWidth: 1100, margin: "0 auto" }}>
+          {/* Hero */}
+          <div style={{
+            background: "linear-gradient(135deg, #1d2e3d 0%, #1a1b3a 100%)",
+            border: "1px solid #4ecdc450", borderRadius: 20, padding: "32px 28px",
+            textAlign: "center", marginBottom: 16, position: "relative", overflow: "hidden"
+          }}>
+            <div style={{ position: "absolute", top: -20, right: -20, fontSize: 120, opacity: 0.05 }}>💪</div>
+            <div style={{ fontSize: 56, marginBottom: 8 }}>🎉</div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 32, fontWeight: 800, letterSpacing: -0.5, marginBottom: 4 }}>
+              Workout Complete!
+            </div>
+            <div style={{ fontSize: 13, color: "#9aa5c4", marginBottom: 24 }}>
+              Lower Body Power · {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </div>
+
+            {/* Hero stats */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, maxWidth: 700, margin: "0 auto" }}>
+              {[
+                { label: "Duration", val: formatTime(sessionElapsed), color: "#4ecdc4", icon: "⏱" },
+                { label: "Volume", val: totalVolume.toLocaleString(), unit: "lbs", color: "#a29bfe", icon: "💪" },
+                { label: "Total Reps", val: totalReps, color: "#ffe66d", icon: "🔁" },
+                { label: "Calories", val: `~${estCalories}`, color: "#ff6b6b", icon: "🔥" },
+              ].map(s => (
+                <div key={s.label} style={{ background: "#0d1117", borderRadius: 12, padding: 14 }}>
+                  <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, color: s.color, lineHeight: 1 }}>
+                    {s.val}{s.unit && <span style={{ fontSize: 11, color: "#7a8299", marginLeft: 2 }}>{s.unit}</span>}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#7a8299", marginTop: 4, letterSpacing: 1, textTransform: "uppercase" }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Volume vs Last Session */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+            <Card style={{
+              background: volumeDelta >= 0
+                ? "linear-gradient(135deg, rgba(78,205,196,0.1) 0%, #1a2035 100%)"
+                : "linear-gradient(135deg, rgba(253,150,68,0.1) 0%, #1a2035 100%)",
+              borderColor: volumeDelta >= 0 ? "#4ecdc450" : "#fd964450"
+            }}>
+              <CardTitle accent={volumeDelta >= 0 ? "#4ecdc4" : "#fd9644"}>Volume vs Last Session</CardTitle>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
+                <span style={{ fontFamily: "'Syne', sans-serif", fontSize: 38, fontWeight: 800, color: volumeDelta >= 0 ? "#4ecdc4" : "#fd9644" }}>
+                  {volumeDelta >= 0 ? "+" : ""}{volumeDelta.toLocaleString()}
+                </span>
+                <span style={{ fontSize: 13, color: "#7a8299" }}>lbs ({volumeDelta >= 0 ? "+" : ""}{volumeDeltaPct}%)</span>
+              </div>
+              <div style={{ fontSize: 12, color: "#9aa5c4", lineHeight: 1.5 }}>
+                {volumeDelta >= 0
+                  ? `You moved ${volumeDelta.toLocaleString()} more pounds than last session. That's progressive overload working — exactly what muscle preservation requires on Zepbound.`
+                  : `Slightly lower volume than last session. Could be a normal fluctuation, but log how you felt — was sleep, fuel, or stress off?`}
+              </div>
+            </Card>
+
+            <Card>
+              <CardTitle accent="#ffe66d">Effort & Form</CardTitle>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div style={{ background: "#0d1117", borderRadius: 10, padding: 12 }}>
+                  <div style={{ fontSize: 10, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase" }}>Avg RPE</div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, color: avgRpe >= 8.5 ? "#fd9644" : "#4ecdc4" }}>{avgRpe}</div>
+                  <div style={{ fontSize: 10, color: "#7a8299" }}>
+                    {avgRpe >= 8.5 ? "Hard session" : avgRpe >= 7.5 ? "Productive zone" : "Could push harder"}
+                  </div>
+                </div>
+                <div style={{ background: "#0d1117", borderRadius: 10, padding: 12 }}>
+                  <div style={{ fontSize: 10, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase" }}>PRs Hit</div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800, color: "#a29bfe" }}>{prCount}<span style={{ fontSize: 12, color: "#7a8299" }}>/{exercises.length}</span></div>
+                  <div style={{ fontSize: 10, color: "#7a8299" }}>{prCount > 0 ? "Lifts that progressed" : "Hold pattern"}</div>
+                </div>
+              </div>
+              <div style={{ marginTop: 10, padding: 10, background: "#0d1117", borderRadius: 8, fontSize: 11, color: "#9aa5c4" }}>
+                💡 Best progression zone is RPE 7–8.5. Keep ~80% of sets here.
+              </div>
+            </Card>
+          </div>
+
+          {/* Per-exercise breakdown */}
+          <Card style={{ marginBottom: 16 }}>
+            <CardTitle accent="#a29bfe">Exercise Breakdown</CardTitle>
+            <div style={{ display: "grid", gap: 10 }}>
+              {exerciseBreakdown.map((ex, i) => (
+                <div key={i} style={{
+                  background: "#0d1117",
+                  border: `1px solid ${ex.isPR ? "#4ecdc450" : "#1e2640"}`,
+                  borderRadius: 12, padding: 14
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 700, color: "#c0c8e0" }}>{ex.name}</span>
+                        {ex.isPR && (
+                          <span style={{ padding: "2px 8px", background: "rgba(78,205,196,0.2)", border: "1px solid #4ecdc4", borderRadius: 10, fontSize: 10, color: "#4ecdc4", fontWeight: 700, letterSpacing: 1 }}>
+                            ↑ VOLUME PR
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#7a8299", marginTop: 2 }}>
+                        Top set: <span style={{ color: "#c0c8e0", fontFamily: "'JetBrains Mono', monospace" }}>{ex.topSet.reps} × {ex.topSet.weight}lb @ RPE {ex.topSet.rpe}</span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700, color: ex.isPR ? "#4ecdc4" : "#c0c8e0" }}>
+                        {ex.thisVolume.toLocaleString()}<span style={{ fontSize: 10, color: "#7a8299" }}> lbs</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: ex.isPR ? "#4ecdc4" : "#fd9644" }}>
+                        {ex.delta >= 0 ? "+" : ""}{ex.delta} vs last
+                      </div>
+                    </div>
+                  </div>
+                  {/* Visual comparison */}
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 10 }}>
+                    <span style={{ color: "#7a8299", width: 60 }}>Last:</span>
+                    <div style={{ flex: 1, height: 6, background: "#1e2433", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${(ex.lastVol / Math.max(ex.thisVolume, ex.lastVol)) * 100}%`, height: "100%", background: "#4a5568" }} />
+                    </div>
+                    <span style={{ color: "#7a8299", fontFamily: "'JetBrains Mono', monospace", width: 50, textAlign: "right" }}>{ex.lastVol}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 10, marginTop: 4 }}>
+                    <span style={{ color: ex.isPR ? "#4ecdc4" : "#9aa5c4", width: 60 }}>Today:</span>
+                    <div style={{ flex: 1, height: 6, background: "#1e2433", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ width: `${(ex.thisVolume / Math.max(ex.thisVolume, ex.lastVol)) * 100}%`, height: "100%", background: ex.isPR ? "#4ecdc4" : "#a29bfe" }} />
+                    </div>
+                    <span style={{ color: ex.isPR ? "#4ecdc4" : "#c0c8e0", fontFamily: "'JetBrains Mono', monospace", width: 50, textAlign: "right", fontWeight: 700 }}>{ex.thisVolume}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Recovery Prescription (Zepbound-aware) */}
+          <Card style={{
+            marginBottom: 16,
+            background: "linear-gradient(135deg, #1a1b3a 0%, #1a2035 100%)",
+            borderColor: "#5b6ee150"
+          }}>
+            <CardTitle accent="#5b6ee1">🔋 Recovery Prescription · Zepbound Wk 4</CardTitle>
+            <div style={{ fontSize: 12, color: "#9aa5c4", marginBottom: 14, lineHeight: 1.5 }}>
+              You just stressed {muscleGroups.slice(0, 4).join(", ")}. Muscle protein synthesis stays elevated for ~48hrs — these next two days matter most for muscle preservation.
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+              {[
+                { icon: "🥩", label: "Protein", val: "165g today", note: "23g short of target", color: "#a29bfe", priority: true },
+                { icon: "💧", label: "Hydrate", val: "+24oz", note: "Within 1hr post", color: "#4ecdc4" },
+                { icon: "🔥", label: "IR Sauna", val: "25 min", note: "Tonight or tomorrow", color: "#fd9644" },
+                { icon: "😴", label: "Sleep", val: "8+ hours", note: "Critical for recovery", color: "#ffe66d" },
+              ].map(r => (
+                <div key={r.label} style={{
+                  background: "#0d1117", borderRadius: 10, padding: 12,
+                  border: r.priority ? `1px solid ${r.color}50` : "1px solid #1e2640"
+                }}>
+                  <div style={{ fontSize: 22, marginBottom: 4 }}>{r.icon}</div>
+                  <div style={{ fontSize: 10, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase" }}>{r.label}</div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 14, fontWeight: 700, color: r.color, marginTop: 2 }}>{r.val}</div>
+                  <div style={{ fontSize: 10, color: "#7a8299", marginTop: 2 }}>{r.note}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 14, padding: 12, background: "rgba(91,110,225,0.1)", border: "1px solid #5b6ee140", borderRadius: 10, fontSize: 12, color: "#c0c8e0", lineHeight: 1.5 }}>
+              <span style={{ color: "#a29bfe", fontWeight: 600 }}>💉 Zepbound note:</span> GLP-1s suppress appetite, but protein is non-negotiable today. Aim for ~40g in the next 90 min. Try a Greek yogurt (20g) + protein shake (25g).
+            </div>
+          </Card>
+
+          {/* Next Up */}
+          <Card style={{ marginBottom: 16 }}>
+            <CardTitle accent="#ff6b6b">Next in Your Plan</CardTitle>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div style={{ background: "#0d1117", borderRadius: 12, padding: 14, borderLeft: "3px solid #ff6b6b" }}>
+                <div style={{ fontSize: 10, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase" }}>Tomorrow · Sunday</div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 700, color: "#ff6b6b", marginTop: 4 }}>🏃 Long Run</div>
+                <div style={{ fontSize: 12, color: "#c0c8e0", marginTop: 4 }}>6.5 mi easy pace · Legs may feel heavy — keep it Zone 2.</div>
+              </div>
+              <div style={{ background: "#0d1117", borderRadius: 12, padding: 14, borderLeft: "3px solid #a29bfe" }}>
+                <div style={{ fontSize: 10, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase" }}>Next Lower Body</div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 700, color: "#a29bfe", marginTop: 4 }}>🏋️ Thursday (5 days)</div>
+                <div style={{ fontSize: 12, color: "#c0c8e0", marginTop: 4 }}>Squat target: <span style={{ color: "#4ecdc4", fontWeight: 600 }}>{Math.round(exerciseBreakdown[0].topSet.weight + 5)}lb × 6</span> based on today's RPE.</div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Action buttons */}
+          <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+            <button style={{
+              padding: "12px 20px", borderRadius: 10, border: "1px solid #2a3350",
+              background: "transparent", color: "#9aa5c4", fontFamily: "'Syne', sans-serif",
+              fontSize: 13, fontWeight: 600, cursor: "pointer"
+            }}>📤 Share Workout</button>
+            <button style={{
+              padding: "12px 20px", borderRadius: 10, border: "1px solid #2a3350",
+              background: "transparent", color: "#9aa5c4", fontFamily: "'Syne', sans-serif",
+              fontSize: 13, fontWeight: 600, cursor: "pointer"
+            }}>📝 Add Note</button>
+            <button onClick={onDone} style={{
+              padding: "12px 28px", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg, #4ecdc4 0%, #a29bfe 100%)",
+              color: "#0d1117", fontFamily: "'Syne', sans-serif",
+              fontSize: 14, fontWeight: 800, letterSpacing: 0.5, cursor: "pointer",
+              boxShadow: "0 4px 16px rgba(78,205,196,0.3)"
+            }}>✓ Save & Return Home</button>
+          </div>
+        </div>
+      );
+    };
+
+    // === LIVE WORKOUT TRACKER ===
+    const WorkoutTracker = ({ onFinish }) => {
+      const exercises = exerciseLibrary;
+      const [currentExIdx, setCurrentExIdx] = useState(0);
+      const [setLogs, setSetLogs] = useState(exercises.map(ex => Array(ex.target.sets).fill(null)));
+      const [activeSetIdx, setActiveSetIdx] = useState(0);
+      const [inputReps, setInputReps] = useState("");
+      const [inputWeight, setInputWeight] = useState("");
+      const [inputRpe, setInputRpe] = useState(7);
+      const [restRemaining, setRestRemaining] = useState(0);
+      const [restTotal, setRestTotal] = useState(0);
+      const [sessionStart] = useState(Date.now());
+      const [sessionElapsed, setSessionElapsed] = useState(0);
+      const [showSummary, setShowSummary] = useState(false);
+      const [finalElapsed, setFinalElapsed] = useState(0);
+      const restRef = useRef(null);
+
+      useEffect(() => {
+        const interval = setInterval(() => setSessionElapsed(Math.floor((Date.now() - sessionStart) / 1000)), 1000);
+        return () => clearInterval(interval);
+      }, [sessionStart]);
+
+      useEffect(() => {
+        if (restRemaining > 0) restRef.current = setTimeout(() => setRestRemaining(r => r - 1), 1000);
+        return () => clearTimeout(restRef.current);
+      }, [restRemaining]);
+
+      const currentEx = exercises[currentExIdx];
+      const suggested = suggestNext(currentEx.lastSession, currentEx.target);
+
+      useEffect(() => {
+        setInputWeight(suggested.weight.toString());
+        setInputReps(suggested.reps.toString());
+        setInputRpe(7);
+      }, [currentExIdx, activeSetIdx]);
+
+      const logSet = () => {
+        const newLogs = [...setLogs];
+        newLogs[currentExIdx][activeSetIdx] = { reps: parseInt(inputReps), weight: parseFloat(inputWeight), rpe: inputRpe };
+        setSetLogs(newLogs);
+        setRestRemaining(currentEx.restSec);
+        setRestTotal(currentEx.restSec);
+        if (activeSetIdx < currentEx.target.sets - 1) setActiveSetIdx(activeSetIdx + 1);
+        else if (currentExIdx < exercises.length - 1) { setCurrentExIdx(currentExIdx + 1); setActiveSetIdx(0); }
+      };
+
+      const formatTime = (sec) => `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, "0")}`;
+      const totalSets = exercises.reduce((sum, ex) => sum + ex.target.sets, 0);
+      const completedSets = setLogs.flat().filter(s => s !== null).length;
+      const progressPct = (completedSets / totalSets) * 100;
+      const totalVolume = setLogs.flat().filter(s => s !== null).reduce((sum, s) => sum + (s.reps * s.weight), 0);
+
+      // Show summary screen when finished
+      if (showSummary) {
+        return <PostWorkoutSummary exercises={exercises} setLogs={setLogs} sessionElapsed={finalElapsed} onDone={onFinish} />;
+      }
+
+      const finishWorkout = () => {
+        setFinalElapsed(sessionElapsed);
+        setShowSummary(true);
+      };
+
+      const allSetsDone = completedSets === totalSets;
+
+      return (
+        <div>
+          <div style={{ padding: "20px 24px 12px", borderBottom: "1px solid #1a2035" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 12, color: "#4a5568", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>Active Session</div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 24, fontWeight: 800 }}>🏋️ Lower Body Power</div>
+              </div>
+              <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 22, fontWeight: 700, color: "#4ecdc4" }}>{formatTime(sessionElapsed)}</div>
+                  <div style={{ fontSize: 10, color: "#7a8299" }}>SESSION</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 700, color: "#a29bfe" }}>{completedSets}/{totalSets}</div>
+                  <div style={{ fontSize: 10, color: "#7a8299" }}>SETS</div>
+                </div>
+                {completedSets > 0 && (
+                  <button onClick={finishWorkout} style={{
+                    padding: "10px 16px", borderRadius: 10, border: "none",
+                    background: allSetsDone ? "linear-gradient(135deg, #4ecdc4 0%, #a29bfe 100%)" : "#161c2d",
+                    color: allSetsDone ? "#0d1117" : "#9aa5c4",
+                    fontFamily: "'Syne', sans-serif", fontSize: 12, fontWeight: 700,
+                    cursor: "pointer", letterSpacing: 0.5,
+                    border: allSetsDone ? "none" : "1px solid #2a3350",
+                    boxShadow: allSetsDone ? "0 4px 16px rgba(78,205,196,0.3)" : "none",
+                    animation: allSetsDone ? "pulse 1.5s infinite" : "none"
+                  }}>
+                    {allSetsDone ? "✓ Finish Workout" : "End Early"}
+                  </button>
+                )}
+              </div>
+            </div>
+            <div style={{ marginTop: 14, height: 4, background: "#1e2433", borderRadius: 2, overflow: "hidden" }}>
+              <div style={{ width: `${progressPct}%`, height: "100%", background: "linear-gradient(90deg, #a29bfe 0%, #4ecdc4 100%)", transition: "width 0.5s ease" }} />
+            </div>
+          </div>
+
+          <div style={{ padding: "20px 24px", maxWidth: 1300 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "280px 1fr 260px", gap: 16 }}>
+
+              {/* Exercise List */}
+              <Card style={{ alignSelf: "start" }}>
+                <CardTitle accent="#a29bfe">Exercises</CardTitle>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {exercises.map((ex, i) => {
+                    const exSets = setLogs[i].filter(s => s !== null).length;
+                    const isActive = i === currentExIdx;
+                    const isDone = exSets === ex.target.sets;
+                    return (
+                      <div key={i} onClick={() => { setCurrentExIdx(i); const next = setLogs[i].findIndex(s => s === null); setActiveSetIdx(next === -1 ? ex.target.sets - 1 : next); }}
+                        style={{
+                          background: isActive ? "rgba(162,155,254,0.1)" : "#0d1117",
+                          border: `1px solid ${isActive ? "#a29bfe" : "#1e2640"}`,
+                          borderRadius: 10, padding: 12, cursor: "pointer"
+                        }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 13, fontWeight: 700, color: isActive ? "#a29bfe" : "#c0c8e0" }}>{ex.name}</div>
+                          {isDone && <span style={{ color: "#4ecdc4", fontSize: 14 }}>✓</span>}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#7a8299", display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                          <span>{ex.target.sets}×{ex.target.reps} @ {ex.target.weight}lb</span>
+                          <span style={{ color: isDone ? "#4ecdc4" : "#7a8299" }}>{exSets}/{ex.target.sets}</span>
+                        </div>
+                        <div style={{ marginTop: 6, display: "flex", gap: 3 }}>
+                          {Array.from({ length: ex.target.sets }).map((_, si) => (
+                            <div key={si} style={{ flex: 1, height: 4, borderRadius: 2, background: setLogs[i][si] ? "#4ecdc4" : "#1e2433" }} />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ marginTop: 16, padding: 12, background: "#0d1117", borderRadius: 10, border: "1px solid #1e2640" }}>
+                  <div style={{ fontSize: 10, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>Live Volume</div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, color: "#4ecdc4" }}>
+                    {totalVolume.toLocaleString()} <span style={{ fontSize: 12, color: "#7a8299" }}>lbs</span>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Active Set Logger */}
+              <Card>
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, color: "#a29bfe", letterSpacing: 2, textTransform: "uppercase", fontWeight: 700 }}>
+                    Exercise {currentExIdx + 1} of {exercises.length}
+                  </div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 28, fontWeight: 800, marginTop: 2 }}>{currentEx.name}</div>
+                  <div style={{ fontSize: 12, color: "#7a8299", marginTop: 4 }}>
+                    Target: <span style={{ color: "#c0c8e0" }}>{currentEx.target.sets} × {currentEx.target.reps} @ {currentEx.target.weight} lbs</span> · Rest {currentEx.restSec}s
+                  </div>
+                </div>
+
+                {suggested.hint && (
+                  <div style={{ padding: 12, background: "linear-gradient(135deg, rgba(78,205,196,0.1), rgba(162,155,254,0.1))", border: "1px solid #4ecdc450", borderRadius: 10, marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 22 }}>🤖</span>
+                    <div>
+                      <div style={{ fontSize: 11, color: "#4ecdc4", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 2 }}>Smart Coach</div>
+                      <div style={{ fontSize: 13, color: "#c0c8e0" }}>{suggested.hint}</div>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Sets</div>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    {Array.from({ length: currentEx.target.sets }).map((_, i) => {
+                      const log = setLogs[currentExIdx][i];
+                      const lastSet = currentEx.lastSession.sets[i];
+                      const isActive = i === activeSetIdx && !log;
+                      const isDone = !!log;
+                      return (
+                        <div key={i} onClick={() => !isDone && setActiveSetIdx(i)} style={{
+                          display: "grid", gridTemplateColumns: "40px 1fr 1fr 1fr 60px",
+                          gap: 8, alignItems: "center", padding: "10px 12px",
+                          background: isActive ? "rgba(162,155,254,0.1)" : isDone ? "rgba(78,205,196,0.05)" : "#0d1117",
+                          border: `1px solid ${isActive ? "#a29bfe" : isDone ? "#4ecdc430" : "#1e2640"}`,
+                          borderRadius: 10, cursor: !isDone ? "pointer" : "default"
+                        }}>
+                          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, color: isActive ? "#a29bfe" : isDone ? "#4ecdc4" : "#7a8299" }}>
+                            {isDone ? "✓" : `#${i + 1}`}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, color: "#7a8299" }}>Reps</div>
+                            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: isDone ? "#4ecdc4" : "#c0c8e0" }}>
+                              {log ? log.reps : "—"} <span style={{ fontSize: 9, color: "#4a5568" }}>(was {lastSet?.reps})</span>
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, color: "#7a8299" }}>Weight</div>
+                            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: isDone ? "#4ecdc4" : "#c0c8e0" }}>
+                              {log ? `${log.weight}lb` : "—"} <span style={{ fontSize: 9, color: "#4a5568" }}>(was {lastSet?.weight})</span>
+                            </div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, color: "#7a8299" }}>RPE</div>
+                            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: isDone ? (log.rpe >= 9 ? "#fd9644" : "#4ecdc4") : "#c0c8e0" }}>
+                              {log ? log.rpe : "—"}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            {isDone && lastSet && log.weight * log.reps > lastSet.weight * lastSet.reps && (
+                              <span style={{ fontSize: 10, color: "#4ecdc4", fontWeight: 700 }}>↑ PR</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {setLogs[currentExIdx][activeSetIdx] === null && (
+                  <div style={{ padding: 18, background: "#0d1117", border: "2px solid #a29bfe50", borderRadius: 14 }}>
+                    <div style={{ fontSize: 11, color: "#a29bfe", letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 700, marginBottom: 14 }}>
+                      ▸ Logging Set {activeSetIdx + 1}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: "#7a8299", marginBottom: 6, letterSpacing: 1, textTransform: "uppercase" }}>Reps</div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button onClick={() => setInputReps(r => Math.max(0, parseInt(r || 0) - 1).toString())} style={{ width: 36, height: 44, borderRadius: 8, border: "1px solid #2a3350", background: "transparent", color: "#a29bfe", fontSize: 18, fontWeight: 700, cursor: "pointer" }}>−</button>
+                          <input value={inputReps} onChange={(e) => setInputReps(e.target.value)} type="number" style={{ flex: 1, height: 44, background: "#161c2d", border: "1px solid #2a3350", borderRadius: 8, color: "#fff", fontFamily: "'JetBrains Mono', monospace", fontSize: 18, fontWeight: 700, textAlign: "center", outline: "none" }} />
+                          <button onClick={() => setInputReps(r => (parseInt(r || 0) + 1).toString())} style={{ width: 36, height: 44, borderRadius: 8, border: "1px solid #2a3350", background: "transparent", color: "#a29bfe", fontSize: 18, fontWeight: 700, cursor: "pointer" }}>+</button>
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: "#7a8299", marginBottom: 6, letterSpacing: 1, textTransform: "uppercase" }}>Weight (lbs)</div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button onClick={() => setInputWeight(w => Math.max(0, parseFloat(w || 0) - 5).toString())} style={{ width: 36, height: 44, borderRadius: 8, border: "1px solid #2a3350", background: "transparent", color: "#a29bfe", fontSize: 18, fontWeight: 700, cursor: "pointer" }}>−</button>
+                          <input value={inputWeight} onChange={(e) => setInputWeight(e.target.value)} type="number" style={{ flex: 1, height: 44, background: "#161c2d", border: "1px solid #2a3350", borderRadius: 8, color: "#fff", fontFamily: "'JetBrains Mono', monospace", fontSize: 18, fontWeight: 700, textAlign: "center", outline: "none" }} />
+                          <button onClick={() => setInputWeight(w => (parseFloat(w || 0) + 5).toString())} style={{ width: 36, height: 44, borderRadius: 8, border: "1px solid #2a3350", background: "transparent", color: "#a29bfe", fontSize: 18, fontWeight: 700, cursor: "pointer" }}>+</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <span style={{ fontSize: 10, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase" }}>RPE (Effort)</span>
+                        <span style={{ fontSize: 11, color: "#9aa5c4" }}>{
+                          inputRpe <= 6 ? "Easy" : inputRpe === 7 ? "3 reps left" : inputRpe === 8 ? "2 reps left" : inputRpe === 9 ? "1 rep left" : "Max effort"
+                        }</span>
+                      </div>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {[6, 7, 8, 9, 10].map(n => (
+                          <button key={n} onClick={() => setInputRpe(n)} style={{
+                            flex: 1, padding: "10px", borderRadius: 8,
+                            border: `1px solid ${inputRpe === n ? (n >= 9 ? "#fd9644" : "#a29bfe") : "#2a3350"}`,
+                            background: inputRpe === n ? (n >= 9 ? "rgba(253,150,68,0.15)" : "rgba(162,155,254,0.15)") : "#161c2d",
+                            color: inputRpe === n ? (n >= 9 ? "#fd9644" : "#a29bfe") : "#7a8299",
+                            fontFamily: "'Syne', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer"
+                          }}>{n}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button onClick={logSet} style={{
+                      width: "100%", padding: "16px", borderRadius: 12, border: "none",
+                      background: "linear-gradient(135deg, #a29bfe 0%, #4ecdc4 100%)",
+                      color: "#0d1117", fontFamily: "'Syne', sans-serif",
+                      fontSize: 15, fontWeight: 800, letterSpacing: 1, cursor: "pointer"
+                    }}>
+                      ✓ LOG SET {activeSetIdx + 1} & START REST
+                    </button>
+                  </div>
+                )}
+
+                {setLogs[currentExIdx].every(s => s !== null) && (
+                  <div style={{ padding: 18, background: "rgba(78,205,196,0.1)", border: "1px solid #4ecdc4", borderRadius: 14, textAlign: "center" }}>
+                    <div style={{ fontSize: 36, marginBottom: 8 }}>✓</div>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700, color: "#4ecdc4" }}>Exercise Complete!</div>
+                    {currentExIdx < exercises.length - 1 && (
+                      <button onClick={() => { setCurrentExIdx(currentExIdx + 1); setActiveSetIdx(0); }} style={{
+                        marginTop: 12, padding: "10px 20px", borderRadius: 10, border: "none",
+                        background: "#4ecdc4", color: "#0d1117",
+                        fontFamily: "'Syne', sans-serif", fontSize: 13, fontWeight: 700, cursor: "pointer"
+                      }}>Next: {exercises[currentExIdx + 1].name} →</button>
+                    )}
+                  </div>
+                )}
+              </Card>
+
+              {/* History & Cues */}
+              <Card style={{ alignSelf: "start" }}>
+                <CardTitle accent="#ffe66d">Last · {currentEx.lastSession.date}</CardTitle>
+                <div style={{ display: "grid", gap: 6, marginBottom: 16 }}>
+                  {currentEx.lastSession.sets.map((s, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: "#0d1117", borderRadius: 8, fontSize: 12 }}>
+                      <span style={{ color: "#7a8299", fontWeight: 600 }}>Set {i + 1}</span>
+                      <span style={{ color: "#c0c8e0", fontFamily: "'JetBrains Mono', monospace" }}>
+                        {s.reps} × {s.weight}lb<span style={{ color: s.rpe >= 9 ? "#fd9644" : "#9aa5c4", marginLeft: 6 }}>@ {s.rpe}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <CardTitle accent="#fd9644">Form Cues</CardTitle>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {currentEx.cues.map((cue, i) => (
+                    <div key={i} style={{ padding: "8px 10px", background: "#0d1117", borderLeft: "2px solid #fd9644", borderRadius: 6, fontSize: 12, color: "#c0c8e0" }}>{cue}</div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          </div>
+
+          {/* Floating Rest Timer */}
+          {restRemaining > 0 && (
+            <div style={{
+              position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)",
+              background: "linear-gradient(135deg, #1a1b3a 0%, #1a2035 100%)",
+              border: `2px solid ${restRemaining <= 10 ? "#fd9644" : "#a29bfe"}`,
+              borderRadius: 20, padding: "16px 24px", zIndex: 50, minWidth: 320,
+              boxShadow: `0 8px 32px ${restRemaining <= 10 ? "rgba(253,150,68,0.3)" : "rgba(162,155,254,0.3)"}`
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: "#7a8299", letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 700 }}>⏱ Rest Timer</div>
+                <div style={{ fontSize: 11, color: "#7a8299" }}>Next: Set {activeSetIdx + 1}</div>
+              </div>
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 42, fontWeight: 700,
+                color: restRemaining <= 10 ? "#fd9644" : "#a29bfe",
+                textAlign: "center", lineHeight: 1, marginBottom: 8,
+                animation: restRemaining <= 10 ? "pulse 1s infinite" : "none"
+              }}>{formatTime(restRemaining)}</div>
+              <div style={{ width: "100%", height: 4, background: "#0d1117", borderRadius: 2, overflow: "hidden", marginBottom: 12 }}>
+                <div style={{ width: `${(restRemaining / restTotal) * 100}%`, height: "100%", background: restRemaining <= 10 ? "#fd9644" : "#a29bfe", transition: "width 1s linear" }} />
+              </div>
+              <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+                <button onClick={() => setRestRemaining(r => r + 15)} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #2a3350", background: "transparent", color: "#9aa5c4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>+15s</button>
+                <button onClick={() => setRestRemaining(r => r + 30)} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #2a3350", background: "transparent", color: "#9aa5c4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>+30s</button>
+                <button onClick={() => setRestRemaining(0)} style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: "#4ecdc4", color: "#0d1117", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'Syne', sans-serif" }}>Skip →</button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // === DASHBOARD HOME ===
+    const DashboardHome = ({ onStartWorkout }) => {
+      const weightLost = (z.startWeight - z.currentWeight).toFixed(1);
+      const muscleGained = (z.currentMuscle - z.startMuscle).toFixed(1);
+      const fatLost = (z.startBodyFat - z.currentBodyFat).toFixed(1);
+      const [doseLog, setDoseLog] = useState(initialDoseLog);
+      const [showLogModal, setShowLogModal] = useState(false);
+      const [logSite, setLogSite] = useState("Left abdomen");
+      const injectionSites = ["Left abdomen", "Right abdomen", "Left thigh", "Right thigh", "Left arm", "Right arm"];
+      const lastSite = doseLog[doseLog.length - 1]?.site;
+      const recommendedSite = injectionSites.find(s => s !== lastSite) || "Left abdomen";
+
+      const logDose = () => {
+        const newDose = { week: doseLog.length + 1, date: "Apr 28", dose: z.currentDose, site: logSite, time: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }), taken: true };
+        setDoseLog([...doseLog, newDose]);
+        setShowLogModal(false);
+      };
+
+      return (
+        <div>
+          <div style={{ padding: "20px 24px 12px", borderBottom: "1px solid #1a2035" }}>
+            <div style={{ fontSize: 12, color: "#4a5568", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>Saturday, April 25</div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 26, fontWeight: 800 }}>Good morning, <span style={{ color: "#4ecdc4" }}>Terry</span> 👋</div>
+            <div style={{ fontSize: 13, color: "#7a8299", marginTop: 3 }}>
+              🔥 14-day streak · 💉 Zepbound Wk 4 · Next dose in <span style={{ color: "#fd9644", fontWeight: 600 }}>3 days</span>
+            </div>
+          </div>
+
+          <div style={{ padding: "20px 24px", maxWidth: 1200, display: "grid", gap: 16, gridTemplateColumns: "1fr 1fr" }}>
+
+            {/* Dose Reminder */}
+            <Card style={{ gridColumn: "1 / -1", background: "linear-gradient(135deg, #2a1f3d 0%, #1a2035 100%)", borderColor: "#5b6ee180" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{ width: 56, height: 56, borderRadius: 14, background: "linear-gradient(135deg, #5b6ee1 0%, #a29bfe 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>💉</div>
+                  <div>
+                    <div style={{ fontSize: 11, color: "#5b6ee1", letterSpacing: 2, textTransform: "uppercase", fontWeight: 700 }}>Next Zepbound Dose</div>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800, marginTop: 2 }}>Tuesday, Apr 28 <span style={{ color: "#7a8299", fontSize: 14, fontWeight: 400 }}>· 7:30 AM</span></div>
+                    <div style={{ fontSize: 12, color: "#9aa5c4", marginTop: 2 }}>{z.currentDose} · Suggested site: <span style={{ color: "#4ecdc4" }}>{recommendedSite}</span></div>
+                  </div>
+                </div>
+                <button onClick={() => setShowLogModal(true)} style={{
+                  padding: "10px 18px", borderRadius: 10, border: "none", cursor: "pointer",
+                  background: "linear-gradient(135deg, #5b6ee1 0%, #a29bfe 100%)",
+                  color: "#fff", fontFamily: "'Syne', sans-serif", fontSize: 13, fontWeight: 700
+                }}>✓ Log Dose Now</button>
+              </div>
+            </Card>
+
+            {/* AI Coach Workout Suggestion */}
+            <Card style={{ gridColumn: "1 / -1", background: "linear-gradient(135deg, #1d2e3d 0%, #1a2035 100%)", borderColor: "#a29bfe50" }}>
+              <CardTitle accent="#a29bfe">💡 Today's AI Coach Recommendation</CardTitle>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ fontSize: 32 }}>🏋️</div>
+                  <div>
+                    <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700, color: "#a29bfe" }}>Lower Body Power</div>
+                    <div style={{ fontSize: 12, color: "#9aa5c4" }}>45–55 min · Heavy · Quads, Glutes, Hamstrings</div>
+                  </div>
+                </div>
+                <button onClick={onStartWorkout} style={{
+                  padding: "10px 20px", borderRadius: 10, border: "none",
+                  background: "linear-gradient(135deg, #a29bfe 0%, #4ecdc4 100%)",
+                  color: "#0d1117", fontFamily: "'Syne', sans-serif", fontSize: 13, fontWeight: 800,
+                  cursor: "pointer", letterSpacing: 0.5
+                }}>▸ Start Tracked Session</button>
+              </div>
+              <div style={{ padding: 12, background: "#0d1117", borderRadius: 10, fontSize: 13, color: "#c0c8e0", lineHeight: 1.5 }}>
+                <span style={{ color: "#a29bfe", fontWeight: 600 }}>Why this:</span> You're 4 weeks into Zepbound — lower body resistance is critical for muscle preservation. Recovery is high (88) and you haven't trained legs since Thursday.
+              </div>
+            </Card>
+
+            {/* Daily Score */}
+            <Card>
+              <CardTitle accent="#4ecdc4">Today's Scores</CardTitle>
+              <div style={{ display: "flex", justifyContent: "space-around", alignItems: "center" }}>
+                {[{ label: "Readiness", value: 82, color: "#4ecdc4" }, { label: "Activity", value: 74, color: "#ffe66d" }, { label: "Recovery", value: 88, color: "#a29bfe" }].map(s => (
+                  <div key={s.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                    <Ring value={s.value} max={100} size={70} stroke={6} color={s.color}>
+                      <span style={{ fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 700, color: "#fff" }}>{s.value}</span>
+                    </Ring>
+                    <span style={{ fontSize: 10, color: "#7a8299", fontWeight: 600, letterSpacing: 1, textTransform: "uppercase" }}>{s.label}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            {/* Zepbound Progress */}
+            <Card>
+              <CardTitle accent="#5b6ee1">Zepbound · Week 4</CardTitle>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div style={{ background: "#0d1117", borderRadius: 10, padding: 12, borderLeft: "3px solid #4ecdc4" }}>
+                  <div style={{ fontSize: 10, color: "#7a8299", textTransform: "uppercase", letterSpacing: 1 }}>Weight</div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700, color: "#4ecdc4" }}>−{weightLost} lbs</div>
+                </div>
+                <div style={{ background: "#0d1117", borderRadius: 10, padding: 12, borderLeft: "3px solid #a29bfe" }}>
+                  <div style={{ fontSize: 10, color: "#7a8299", textTransform: "uppercase", letterSpacing: 1 }}>Muscle</div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700, color: "#a29bfe" }}>+{muscleGained} lbs</div>
+                </div>
+                <div style={{ background: "#0d1117", borderRadius: 10, padding: 12, borderLeft: "3px solid #ffe66d" }}>
+                  <div style={{ fontSize: 10, color: "#7a8299", textTransform: "uppercase", letterSpacing: 1 }}>Body Fat</div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700, color: "#ffe66d" }}>−{fatLost}%</div>
+                </div>
+                <div style={{ background: "#0d1117", borderRadius: 10, padding: 12, borderLeft: "3px solid #fd9644" }}>
+                  <div style={{ fontSize: 10, color: "#7a8299", textTransform: "uppercase", letterSpacing: 1 }}>Doses</div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700, color: "#fd9644" }}>{doseLog.length} ✓</div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Body Comp Chart */}
+            <Card style={{ gridColumn: "1 / -1" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
+                <CardTitle accent="#5b6ee1">Body Composition · Weeks 1–4</CardTitle>
+                <div style={{ display: "flex", gap: 12, fontSize: 11, color: "#7a8299" }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 12, height: 2, background: "#4ecdc4" }}/>Weight</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 12, height: 2, background: "#a29bfe" }}/>Muscle</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 12, height: 2, background: "#ffe66d" }}/>Body Fat</span>
+                </div>
+              </div>
+              <TripleLineChart weight={z.weeklyWeight} muscle={z.weeklyMuscle} fat={z.weeklyFat} labels={["Start", "Wk 1", "Wk 2", "Wk 3", "Wk 4"]} />
+            </Card>
+          </div>
+
+          {showLogModal && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20, backdropFilter: "blur(8px)" }} onClick={() => setShowLogModal(false)}>
+              <div onClick={(e) => e.stopPropagation()} style={{ background: "linear-gradient(135deg, #161c2d 0%, #1a2035 100%)", border: "1px solid #5b6ee150", borderRadius: 20, padding: 28, width: "100%", maxWidth: 440 }}>
+                <div style={{ textAlign: "center", marginBottom: 24 }}>
+                  <div style={{ fontSize: 48, marginBottom: 8 }}>💉</div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 22, fontWeight: 800 }}>Log Zepbound Dose</div>
+                  <div style={{ fontSize: 13, color: "#7a8299", marginTop: 4 }}>Week {doseLog.length + 1} · {z.currentDose}</div>
+                </div>
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, color: "#7a8299", marginBottom: 6, textTransform: "uppercase", letterSpacing: 1 }}>Injection Site</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {injectionSites.map(site => (
+                      <button key={site} onClick={() => setLogSite(site)} style={{
+                        padding: "10px", borderRadius: 8,
+                        border: `1px solid ${logSite === site ? "#5b6ee1" : "#2a3350"}`,
+                        background: logSite === site ? "rgba(91,110,225,0.15)" : "#0d1117",
+                        color: logSite === site ? "#a29bfe" : "#9aa5c4",
+                        fontSize: 12, fontWeight: 600, cursor: "pointer"
+                      }}>{site}{site === recommendedSite && logSite !== site ? " ★" : ""}</button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button onClick={() => setShowLogModal(false)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "1px solid #2a3350", background: "transparent", color: "#9aa5c4", fontFamily: "'Syne', sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Cancel</button>
+                  <button onClick={logDose} style={{ flex: 2, padding: "12px", borderRadius: 10, border: "none", background: "linear-gradient(135deg, #5b6ee1 0%, #a29bfe 100%)", color: "#fff", fontFamily: "'Syne', sans-serif", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>✓ Confirm</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // === SETTINGS / CONFIGURATION PANEL ===
+    const SettingsPanel = ({ onBack }) => {
+      const [connections, setConnections] = useState({
+        withings: { connected: true, status: "synced", lastSync: "6h ago", account: "terry@morris.io", method: "OAuth 2.0", scope: "weight, body_comp, BP, SpO2" },
+        oura: { connected: true, status: "synced", lastSync: "1h ago", account: "Personal Access Token", method: "API Token", scope: "sleep, readiness, activity, HRV" },
+        apple: { connected: false, status: "disconnected", lastSync: null, account: null, method: null, scope: null },
+        aifitness: { connected: true, status: "via Apple Health", lastSync: "12m ago", account: "iOS sync", method: "HealthKit relay", scope: "workouts" },
+        sauna: { connected: false, status: "manual", lastSync: "Yesterday", account: "Manual entry", method: "Manual log", scope: "session minutes" },
+      });
+
+      const [activeIntegration, setActiveIntegration] = useState(null);
+      const [autoSyncFreq, setAutoSyncFreq] = useState("hourly");
+
+      const services = [
+        {
+          id: "withings", name: "Withings", icon: "⚖️", color: "#4ecdc4",
+          tagline: "Full REST API · OAuth 2.0", difficulty: "easy",
+          dataTypes: ["Weight", "Body Fat %", "Muscle Mass", "Blood Pressure", "SpO2", "Heart Rate"],
+          authType: "oauth",
+          docs: "developer.withings.com",
+          notes: "Public API. Authorize once, refresh tokens auto-renew. Webhooks available for real-time push.",
+        },
+        {
+          id: "oura", name: "Oura Ring", icon: "💍", color: "#ffe66d",
+          tagline: "Cloud API v2 · Token or OAuth", difficulty: "easy",
+          dataTypes: ["Sleep stages", "Sleep score", "Readiness", "HRV", "Resting HR", "Body Temp", "Activity"],
+          authType: "token",
+          docs: "cloud.ouraring.com/v2/docs",
+          notes: "Best-in-class API. Personal Access Token is fastest setup. Rate limit: 5000 req/day.",
+        },
+        {
+          id: "apple", name: "Apple Health", icon: "🍎", color: "#ff6b6b",
+          tagline: "No public API · iOS bridge required", difficulty: "complex",
+          dataTypes: ["Steps", "Workouts", "Calories", "Distance", "VO2 Max", "Active Minutes"],
+          authType: "bridge",
+          docs: "Requires iOS companion app",
+          notes: "HealthKit is iOS-only. Choose bridge method below.",
+        },
+        {
+          id: "aifitness", name: "AI Fitness", icon: "🤖", color: "#a29bfe",
+          tagline: "Via Apple Health (no direct API)", difficulty: "indirect",
+          dataTypes: ["Workout plans", "Completed sessions"],
+          authType: "indirect",
+          docs: "Routes through Apple Health",
+          notes: "AI Fitness writes to HealthKit. Connect Apple Health to get this data automatically.",
+        },
+        {
+          id: "sauna", name: "IR Sauna", icon: "🔥", color: "#fd9644",
+          tagline: "Manual logging only", difficulty: "manual",
+          dataTypes: ["Session duration", "Temperature"],
+          authType: "manual",
+          docs: "No API exists",
+          notes: "Most home IR saunas have no API. Quick-log button stays in dashboard.",
+        },
+      ];
+
+      const aggregators = [
+        { name: "Terra API", price: "Free up to 100 users · then $0.10/user/mo", supports: "Apple, Oura, Withings, 50+ others", url: "tryterra.co" },
+        { name: "Vital", price: "Free dev tier · $0.20/user/mo prod", supports: "Apple, Oura, Withings, Garmin, Whoop", url: "tryvital.io" },
+        { name: "Rook", price: "Free tier · contact for pricing", supports: "Apple, Oura, Withings, Fitbit", url: "rookmotion.com" },
+      ];
+
+      const Card = ({ children, style = {} }) => (
+        <div style={{ background: "linear-gradient(135deg, #161c2d 0%, #1a2035 100%)", border: "1px solid #2a3350", borderRadius: 16, padding: "20px 22px", ...style }}>{children}</div>
+      );
+      const CardTitle = ({ children, accent }) => (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <div style={{ width: 3, height: 16, background: accent, borderRadius: 2 }} />
+          <span style={{ fontFamily: "'Syne', sans-serif", fontSize: 13, fontWeight: 700, color: "#c0c8e0", letterSpacing: 1.2, textTransform: "uppercase" }}>{children}</span>
+        </div>
+      );
+
+      const StatusBadge = ({ status }) => {
+        const config = {
+          synced: { color: "#4ecdc4", bg: "rgba(78,205,196,0.15)", label: "● Connected", border: "#4ecdc450" },
+          "via Apple Health": { color: "#a29bfe", bg: "rgba(162,155,254,0.15)", label: "● Indirect", border: "#a29bfe50" },
+          disconnected: { color: "#ff6b6b", bg: "rgba(255,107,107,0.15)", label: "○ Not Connected", border: "#ff6b6b50" },
+          manual: { color: "#fd9644", bg: "rgba(253,150,68,0.15)", label: "◐ Manual Only", border: "#fd964450" },
+        };
+        const c = config[status] || config.disconnected;
+        return (
+          <span style={{ padding: "4px 10px", background: c.bg, border: `1px solid ${c.border}`, borderRadius: 12, fontSize: 11, color: c.color, fontWeight: 600 }}>{c.label}</span>
+        );
+      };
+
+      const toggleConnection = (id) => {
+        setConnections(prev => ({
+          ...prev,
+          [id]: { ...prev[id], connected: !prev[id].connected, status: prev[id].connected ? "disconnected" : "synced", lastSync: prev[id].connected ? null : "Just now" }
+        }));
+      };
+
+      return (
+        <div style={{ minHeight: "100vh", padding: "20px 24px 60px", maxWidth: 1100, margin: "0 auto" }}>
+          {/* Header */}
+          <div style={{ marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, color: "#4a5568", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>Settings</div>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 28, fontWeight: 800, letterSpacing: -0.5 }}>⚙️ Connections & Data Sources</div>
+              <div style={{ fontSize: 13, color: "#7a8299", marginTop: 4 }}>Manage which services feed your dashboard</div>
+            </div>
+            <button onClick={onBack} style={{
+              padding: "10px 18px", borderRadius: 10, border: "1px solid #2a3350",
+              background: "#161c2d", color: "#9aa5c4", fontFamily: "'Syne', sans-serif",
+              fontSize: 13, fontWeight: 600, cursor: "pointer"
+            }}>← Back to Dashboard</button>
+          </div>
+
+          {/* Connection Status Overview */}
+          <Card style={{ marginBottom: 16 }}>
+            <CardTitle accent="#4ecdc4">Connection Status</CardTitle>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+              {services.map(s => {
+                const conn = connections[s.id];
+                return (
+                  <div key={s.id} style={{
+                    background: "#0d1117", borderRadius: 10, padding: 12, textAlign: "center",
+                    border: `1px solid ${conn.connected ? s.color + "40" : "#1e2640"}`
+                  }}>
+                    <div style={{ fontSize: 28, marginBottom: 6, opacity: conn.connected ? 1 : 0.4 }}>{s.icon}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: conn.connected ? s.color : "#7a8299" }}>{s.name}</div>
+                    <div style={{ fontSize: 9, color: "#7a8299", marginTop: 2 }}>{conn.lastSync || "—"}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          {/* Per-Service Configuration */}
+          <Card style={{ marginBottom: 16 }}>
+            <CardTitle accent="#a29bfe">Configure Integrations</CardTitle>
+            <div style={{ display: "grid", gap: 10 }}>
+              {services.map(s => {
+                const conn = connections[s.id];
+                const isExpanded = activeIntegration === s.id;
+                return (
+                  <div key={s.id} style={{
+                    background: "#0d1117", borderRadius: 12,
+                    border: `1px solid ${isExpanded ? s.color + "60" : "#1e2640"}`,
+                    overflow: "hidden", transition: "border 0.2s"
+                  }}>
+                    <div onClick={() => setActiveIntegration(isExpanded ? null : s.id)} style={{
+                      padding: 14, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{
+                          width: 44, height: 44, borderRadius: 10,
+                          background: `${s.color}15`, border: `1px solid ${s.color}40`,
+                          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22
+                        }}>{s.icon}</div>
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <span style={{ fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 700, color: s.color }}>{s.name}</span>
+                            <StatusBadge status={conn.status} />
+                          </div>
+                          <div style={{ fontSize: 11, color: "#7a8299", marginTop: 3 }}>{s.tagline}</div>
+                        </div>
+                      </div>
+                      <span style={{ color: "#7a8299", fontSize: 18, transform: isExpanded ? "rotate(90deg)" : "none", transition: "transform 0.2s" }}>›</span>
+                    </div>
+
+                    {isExpanded && (
+                      <div style={{ padding: "0 14px 14px 14px", borderTop: "1px solid #1e2640" }}>
+                        {/* OAuth/Token flow */}
+                        {s.authType === "oauth" && (
+                          <div style={{ marginTop: 14 }}>
+                            <div style={{ fontSize: 11, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>OAuth 2.0 Connection</div>
+                            {conn.connected ? (
+                              <div style={{ background: "#161c2d", borderRadius: 10, padding: 12 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                                  <div>
+                                    <div style={{ fontSize: 12, color: "#c0c8e0" }}>Connected as</div>
+                                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: s.color }}>{conn.account}</div>
+                                  </div>
+                                  <div style={{ display: "flex", gap: 6 }}>
+                                    <button style={{
+                                      padding: "8px 14px", borderRadius: 8, border: "1px solid #2a3350",
+                                      background: "transparent", color: "#9aa5c4", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit"
+                                    }}>↻ Refresh Token</button>
+                                    <button onClick={() => toggleConnection(s.id)} style={{
+                                      padding: "8px 14px", borderRadius: 8, border: "1px solid #ff6b6b40",
+                                      background: "rgba(255,107,107,0.1)", color: "#ff6b6b", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit"
+                                    }}>Disconnect</button>
+                                  </div>
+                                </div>
+                                <div style={{ fontSize: 11, color: "#7a8299" }}>
+                                  Last sync: <span style={{ color: "#c0c8e0" }}>{conn.lastSync}</span> · Scopes: <span style={{ color: s.color }}>{conn.scope}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <button onClick={() => toggleConnection(s.id)} style={{
+                                width: "100%", padding: "14px", borderRadius: 10, border: "none",
+                                background: `linear-gradient(135deg, ${s.color} 0%, ${s.color}dd 100%)`,
+                                color: "#0d1117", fontFamily: "'Syne', sans-serif", fontSize: 14, fontWeight: 800,
+                                cursor: "pointer", letterSpacing: 0.5
+                              }}>🔗 Connect to {s.name}</button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Token-based (Oura) */}
+                        {s.authType === "token" && (
+                          <div style={{ marginTop: 14 }}>
+                            <div style={{ fontSize: 11, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Personal Access Token</div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <input type="password" defaultValue="OURA_••••••••••••••••••••" style={{
+                                flex: 1, height: 40, background: "#161c2d", border: "1px solid #2a3350",
+                                borderRadius: 8, padding: "0 12px", color: "#c0c8e0",
+                                fontFamily: "'JetBrains Mono', monospace", fontSize: 12, outline: "none"
+                              }} />
+                              <button style={{
+                                padding: "8px 14px", borderRadius: 8, border: "none",
+                                background: s.color, color: "#0d1117",
+                                fontFamily: "'Syne', sans-serif", fontSize: 12, fontWeight: 700, cursor: "pointer"
+                              }}>Test & Save</button>
+                            </div>
+                            <div style={{ fontSize: 11, color: "#7a8299", marginTop: 8 }}>
+                              Get your token at <span style={{ color: s.color }}>{s.docs}</span> → My Account → Personal Access Tokens
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Apple Health bridge */}
+                        {s.authType === "bridge" && (
+                          <div style={{ marginTop: 14 }}>
+                            <div style={{ padding: 12, background: "rgba(255,107,107,0.08)", border: "1px solid #ff6b6b40", borderRadius: 10, marginBottom: 12 }}>
+                              <div style={{ fontSize: 11, color: "#ff6b6b", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>⚠ Important</div>
+                              <div style={{ fontSize: 12, color: "#c0c8e0", lineHeight: 1.5 }}>
+                                Apple HealthKit has no public web API. You need a bridge to get your data out of iOS. Pick one:
+                              </div>
+                            </div>
+
+                            <div style={{ fontSize: 11, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Bridge Options</div>
+                            <div style={{ display: "grid", gap: 8 }}>
+                              {[
+                                { name: "Aggregator API (Recommended)", desc: "Use Terra, Vital, or Rook. They handle HealthKit + everything else.", time: "~1 day", best: true },
+                                { name: "Health Auto Export", desc: "Third-party iOS app, ~$5. Exports to webhook/iCloud on schedule.", time: "~1 hour", best: false },
+                                { name: "Build iOS Companion App", desc: "Native Swift app reading HealthKit, posting to your backend.", time: "~2 weeks", best: false },
+                              ].map((opt, i) => (
+                                <div key={i} style={{
+                                  background: "#161c2d", borderRadius: 8, padding: 12,
+                                  border: opt.best ? `1px solid ${s.color}50` : "1px solid #1e2640"
+                                }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: opt.best ? s.color : "#c0c8e0" }}>
+                                      {opt.name} {opt.best && <span style={{ fontSize: 9, padding: "2px 6px", background: `${s.color}20`, borderRadius: 4, marginLeft: 4, letterSpacing: 1 }}>BEST</span>}
+                                    </span>
+                                    <span style={{ fontSize: 10, color: "#7a8299" }}>Setup: {opt.time}</span>
+                                  </div>
+                                  <div style={{ fontSize: 11, color: "#9aa5c4" }}>{opt.desc}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Indirect */}
+                        {s.authType === "indirect" && (
+                          <div style={{ marginTop: 14, padding: 12, background: "rgba(162,155,254,0.08)", border: "1px solid #a29bfe40", borderRadius: 10 }}>
+                            <div style={{ fontSize: 12, color: "#c0c8e0", lineHeight: 1.5 }}>
+                              {s.notes} Connect Apple Health above to get AI Fitness workouts automatically.
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Manual */}
+                        {s.authType === "manual" && (
+                          <div style={{ marginTop: 14, padding: 12, background: "rgba(253,150,68,0.08)", border: "1px solid #fd964440", borderRadius: 10 }}>
+                            <div style={{ fontSize: 12, color: "#c0c8e0", lineHeight: 1.5 }}>
+                              {s.notes} Use the quick-log button on the Today screen after each session.
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Data types */}
+                        <div style={{ marginTop: 12 }}>
+                          <div style={{ fontSize: 10, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>Data Available</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                            {s.dataTypes.map(dt => (
+                              <span key={dt} style={{
+                                padding: "3px 8px", background: `${s.color}15`,
+                                border: `1px solid ${s.color}30`, borderRadius: 10,
+                                fontSize: 10, color: s.color
+                              }}>{dt}</span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          {/* Aggregator Recommendation */}
+          <Card style={{ marginBottom: 16, background: "linear-gradient(135deg, #1d2e3d 0%, #1a2035 100%)", borderColor: "#4ecdc450" }}>
+            <CardTitle accent="#4ecdc4">💡 Recommended: Use an Aggregator</CardTitle>
+            <div style={{ fontSize: 13, color: "#c0c8e0", marginBottom: 14, lineHeight: 1.6 }}>
+              Instead of integrating each API separately, services like <strong style={{ color: "#4ecdc4" }}>Terra</strong>, <strong style={{ color: "#4ecdc4" }}>Vital</strong>, or <strong style={{ color: "#4ecdc4" }}>Rook</strong> give you one API for all of them — including the Apple Health bridge. This is what most production health apps actually use.
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+              {aggregators.map(a => (
+                <div key={a.name} style={{ background: "#0d1117", borderRadius: 10, padding: 12, border: "1px solid #1e2640" }}>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontSize: 14, fontWeight: 700, color: "#4ecdc4" }}>{a.name}</div>
+                  <div style={{ fontSize: 11, color: "#9aa5c4", marginTop: 4 }}>{a.supports}</div>
+                  <div style={{ fontSize: 11, color: "#ffe66d", marginTop: 6, fontWeight: 600 }}>{a.price}</div>
+                  <div style={{ fontSize: 10, color: "#7a8299", marginTop: 4 }}>{a.url}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Sync Settings */}
+          <Card style={{ marginBottom: 16 }}>
+            <CardTitle accent="#ffe66d">Sync Settings</CardTitle>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 11, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Auto-Sync Frequency</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {[
+                    { id: "realtime", label: "Real-time" },
+                    { id: "15min", label: "Every 15 min" },
+                    { id: "hourly", label: "Hourly" },
+                    { id: "daily", label: "Once a day" },
+                  ].map(opt => (
+                    <button key={opt.id} onClick={() => setAutoSyncFreq(opt.id)} style={{
+                      padding: "8px 14px", borderRadius: 8,
+                      border: `1px solid ${autoSyncFreq === opt.id ? "#ffe66d" : "#2a3350"}`,
+                      background: autoSyncFreq === opt.id ? "rgba(255,230,109,0.15)" : "#0d1117",
+                      color: autoSyncFreq === opt.id ? "#ffe66d" : "#9aa5c4",
+                      fontFamily: "'Syne', sans-serif", fontSize: 11, fontWeight: 600, cursor: "pointer"
+                    }}>{opt.label}</button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: "#7a8299", marginTop: 8 }}>Real-time uses webhooks where supported, polling otherwise.</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>Manual Actions</div>
+                <div style={{ display: "grid", gap: 6 }}>
+                  <button style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #4ecdc450", background: "rgba(78,205,196,0.08)", color: "#4ecdc4", fontFamily: "'Syne', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>↻ Sync All Sources Now</button>
+                  <button style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #2a3350", background: "transparent", color: "#9aa5c4", fontFamily: "inherit", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>📥 Backfill Last 90 Days</button>
+                  <button style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #2a3350", background: "transparent", color: "#9aa5c4", fontFamily: "inherit", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>📤 Export My Data (CSV)</button>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Privacy & Storage */}
+          <Card>
+            <CardTitle accent="#ff6b6b">Privacy & Data Storage</CardTitle>
+            <div style={{ display: "grid", gap: 10 }}>
+              {[
+                { label: "Store data locally only", val: false, desc: "Keep all health data on your device. No cloud sync." },
+                { label: "Encrypt at rest", val: true, desc: "AES-256 encryption for all stored health data." },
+                { label: "Share with providers", val: false, desc: "Allow secure share-link generation for doctors." },
+                { label: "Anonymous usage analytics", val: false, desc: "Help improve the app (no health data ever sent)." },
+              ].map(p => (
+                <div key={p.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "#0d1117", borderRadius: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 13, color: "#c0c8e0", fontWeight: 600 }}>{p.label}</div>
+                    <div style={{ fontSize: 11, color: "#7a8299", marginTop: 2 }}>{p.desc}</div>
+                  </div>
+                  <div style={{ width: 40, height: 22, borderRadius: 11, background: p.val ? "#4ecdc4" : "#2a3350", position: "relative", cursor: "pointer", flexShrink: 0 }}>
+                    <div style={{ width: 16, height: 16, borderRadius: "50%", background: "#fff", position: "absolute", top: 3, left: p.val ? 21 : 3, transition: "left 0.2s" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      );
+    };
+
+    // === MAIN APP ===
+    const App = () => {
+      const [view, setView] = useState("home");
+      return (
+        <div style={{
+          minHeight: "100vh", background: "#0d1117",
+          backgroundImage: "radial-gradient(ellipse at 20% 0%, rgba(78,205,196,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 0%, rgba(91,110,225,0.08) 0%, transparent 50%)"
+        }}>
+          {(view === "workout" || view === "settings") && (
+            <button onClick={() => setView("home")} style={{
+              position: "fixed", top: 16, right: 16, zIndex: 60,
+              padding: "8px 14px", borderRadius: 8, border: "1px solid #2a3350",
+              background: "#161c2d", color: "#9aa5c4", cursor: "pointer",
+              fontFamily: "'Syne', sans-serif", fontSize: 12, fontWeight: 600
+            }}>← Back to Dashboard</button>
+          )}
+          {view === "home" && (
+            <button onClick={() => setView("settings")} style={{
+              position: "fixed", top: 16, right: 16, zIndex: 60,
+              padding: "8px 14px", borderRadius: 8, border: "1px solid #2a3350",
+              background: "#161c2d", color: "#9aa5c4", cursor: "pointer",
+              fontFamily: "'Syne', sans-serif", fontSize: 12, fontWeight: 600
+            }}>⚙ Settings</button>
+          )}
+          {view === "home" && <DashboardHome onStartWorkout={() => setView("workout")} />}
+          {view === "workout" && <WorkoutTracker onFinish={() => setView("home")} />}
+          {view === "settings" && <SettingsPanel onBack={() => setView("home")} />}
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

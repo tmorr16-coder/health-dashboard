@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Health Dashboard · Backend Architecture</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&family=JetBrains+Mono:wght@500;700&display=swap" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #0d1117;
+      color: #e8ecf8;
+      background-image: radial-gradient(ellipse at 20% 0%, rgba(78,205,196,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 0%, rgba(91,110,225,0.08) 0%, transparent 50%);
+      min-height: 100vh;
+      padding: 40px 24px 80px;
+    }
+    .container { max-width: 1100px; margin: 0 auto; }
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 38px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #4ecdc4 0%, #a29bfe 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle { font-size: 15px; color: #9aa5c4; margin-bottom: 4px; }
+    .label {
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #4a5568;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      margin: 40px 0 16px;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2::before {
+      content: "";
+      width: 4px;
+      height: 22px;
+      background: #4ecdc4;
+      border-radius: 2px;
+    }
+    .card {
+      background: linear-gradient(135deg, #161c2d 0%, #1a2035 100%);
+      border: 1px solid #2a3350;
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: #c0c8e0;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    p { line-height: 1.6; color: #c0c8e0; margin-bottom: 12px; font-size: 14px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    @media (max-width: 768px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+    .layer {
+      background: #0d1117;
+      border-radius: 10px;
+      padding: 14px;
+      border-left: 3px solid #4ecdc4;
+    }
+    .layer-name { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .layer-tech { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #4ecdc4; margin-bottom: 6px; }
+    .layer-desc { font-size: 12px; color: #9aa5c4; line-height: 1.5; }
+    .pill {
+      display: inline-block;
+      padding: 3px 9px;
+      background: rgba(78,205,196,0.15);
+      border: 1px solid #4ecdc450;
+      border-radius: 12px;
+      font-size: 10px;
+      color: #4ecdc4;
+      font-weight: 600;
+      margin-right: 4px;
+      margin-top: 4px;
+    }
+    .pill-warn { background: rgba(253,150,68,0.15); border-color: #fd964450; color: #fd9644; }
+    .pill-cost { background: rgba(255,230,109,0.15); border-color: #ffe66d50; color: #ffe66d; }
+    .pill-purple { background: rgba(162,155,254,0.15); border-color: #a29bfe50; color: #a29bfe; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 10px 8px; font-size: 10px; color: #7a8299; letter-spacing: 1px; text-transform: uppercase; font-weight: 600; border-bottom: 1px solid #2a3350; }
+    td { padding: 12px 8px; border-bottom: 1px solid #1e2640; color: #c0c8e0; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .accent { color: #4ecdc4; }
+    .accent-purple { color: #a29bfe; }
+    .accent-yellow { color: #ffe66d; }
+    .accent-red { color: #ff6b6b; }
+    .accent-orange { color: #fd9644; }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <div class="label">Architecture Document · v1</div>
+    <h1>Health Dashboard Backend</h1>
+    <p class="subtitle">Pragmatic system design for a multi-source health tracking application</p>
+
+    <div class="card" style="margin-top: 24px; background: linear-gradient(135deg, #1d2e3d 0%, #1a2035 100%); border-color: #4ecdc450;">
+      <div class="card-title" style="color: #4ecdc4;">Executive Summary</div>
+      <p>This is a "buy where it's commodity, build where it's differentiated" architecture. The integrations layer (the hardest part) is offloaded to a health data aggregator. The custom work focuses on what makes the app yours: the workout tracker, Zepbound dose logic, AI insights, and the UX. Total time to MVP: <strong class="accent">~2–3 weekends of focused work</strong> if you have a developer. Monthly cost at single-user scale: <strong class="accent">under $30</strong>.</p>
+    </div>
+
+    <h2>System Diagram</h2>
+    <div class="card" style="padding: 32px 24px;">
+      <svg viewBox="0 0 900 620" style="width: 100%; height: auto;" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="clientGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#4ecdc4" stop-opacity="0.2"/>
+            <stop offset="100%" stop-color="#a29bfe" stop-opacity="0.2"/>
+          </linearGradient>
+          <linearGradient id="apiGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#a29bfe" stop-opacity="0.2"/>
+            <stop offset="100%" stop-color="#5b6ee1" stop-opacity="0.2"/>
+          </linearGradient>
+          <linearGradient id="dataGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#ffe66d" stop-opacity="0.2"/>
+            <stop offset="100%" stop-color="#fd9644" stop-opacity="0.2"/>
+          </linearGradient>
+          <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <polygon points="0 0, 10 3, 0 6" fill="#7a8299"/>
+          </marker>
+          <marker id="arrowAccent" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <polygon points="0 0, 10 3, 0 6" fill="#4ecdc4"/>
+          </marker>
+        </defs>
+
+        <!-- LAYER 1: CLIENT -->
+        <rect x="40" y="20" width="820" height="90" fill="url(#clientGrad)" stroke="#4ecdc4" stroke-opacity="0.4" stroke-width="1" rx="12"/>
+        <text x="60" y="45" font-family="Syne" font-size="11" font-weight="700" fill="#4ecdc4" letter-spacing="2">CLIENT LAYER</text>
+
+        <rect x="80" y="55" width="220" height="40" fill="#161c2d" stroke="#4ecdc4" stroke-opacity="0.5" rx="8"/>
+        <text x="100" y="78" font-family="Syne" font-size="13" font-weight="700" fill="#e8ecf8">📱 Web App (Next.js)</text>
+        <text x="100" y="92" font-family="DM Sans" font-size="10" fill="#7a8299">Dashboard, workout tracker, settings</text>
+
+        <rect x="340" y="55" width="220" height="40" fill="#161c2d" stroke="#a29bfe" stroke-opacity="0.5" rx="8"/>
+        <text x="360" y="78" font-family="Syne" font-size="13" font-weight="700" fill="#e8ecf8">📲 iOS Companion (optional)</text>
+        <text x="360" y="92" font-family="DM Sans" font-size="10" fill="#7a8299">Native HealthKit reader, push notifs</text>
+
+        <rect x="600" y="55" width="220" height="40" fill="#161c2d" stroke="#ffe66d" stroke-opacity="0.5" rx="8"/>
+        <text x="620" y="78" font-family="Syne" font-size="13" font-weight="700" fill="#e8ecf8">⌚ Apple Watch (later)</text>
+        <text x="620" y="92" font-family="DM Sans" font-size="10" fill="#7a8299">Quick log, dose reminders</text>
+
+        <!-- Arrow down -->
+        <line x1="450" y1="115" x2="450" y2="145" stroke="#4ecdc4" stroke-width="2" marker-end="url(#arrowAccent)"/>
+        <text x="465" y="135" font-family="JetBrains Mono" font-size="10" fill="#4ecdc4">HTTPS / JWT</text>
+
+        <!-- LAYER 2: API GATEWAY + AUTH -->
+        <rect x="40" y="155" width="820" height="60" fill="url(#apiGrad)" stroke="#a29bfe" stroke-opacity="0.4" rx="12"/>
+        <text x="60" y="180" font-family="Syne" font-size="11" font-weight="700" fill="#a29bfe" letter-spacing="2">EDGE / AUTH</text>
+
+        <rect x="120" y="180" width="200" height="28" fill="#161c2d" stroke="#a29bfe" stroke-opacity="0.5" rx="6"/>
+        <text x="140" y="198" font-family="Syne" font-size="11" font-weight="700" fill="#e8ecf8">🔐 Clerk / Supabase Auth</text>
+
+        <rect x="350" y="180" width="200" height="28" fill="#161c2d" stroke="#a29bfe" stroke-opacity="0.5" rx="6"/>
+        <text x="370" y="198" font-family="Syne" font-size="11" font-weight="700" fill="#e8ecf8">🌍 Vercel Edge / CDN</text>
+
+        <rect x="580" y="180" width="200" height="28" fill="#161c2d" stroke="#a29bfe" stroke-opacity="0.5" rx="6"/>
+        <text x="600" y="198" font-family="Syne" font-size="11" font-weight="700" fill="#e8ecf8">⚡ Rate Limit / WAF</text>
+
+        <line x1="450" y1="220" x2="450" y2="250" stroke="#4ecdc4" stroke-width="2" marker-end="url(#arrowAccent)"/>
+
+        <!-- LAYER 3: APPLICATION -->
+        <rect x="40" y="260" width="820" height="120" fill="url(#apiGrad)" stroke="#5b6ee1" stroke-opacity="0.4" rx="12"/>
+        <text x="60" y="285" font-family="Syne" font-size="11" font-weight="700" fill="#5b6ee1" letter-spacing="2">APPLICATION SERVICES</text>
+
+        <rect x="80" y="300" width="190" height="65" fill="#161c2d" stroke="#5b6ee1" stroke-opacity="0.5" rx="8"/>
+        <text x="100" y="320" font-family="Syne" font-size="12" font-weight="700" fill="#e8ecf8">📡 REST API</text>
+        <text x="100" y="335" font-family="DM Sans" font-size="10" fill="#7a8299">Next.js API routes</text>
+        <text x="100" y="349" font-family="DM Sans" font-size="10" fill="#7a8299">Hono / Express</text>
+        <text x="100" y="363" font-family="DM Sans" font-size="10" fill="#7a8299">Workouts, doses, settings</text>
+
+        <rect x="290" y="300" width="190" height="65" fill="#161c2d" stroke="#5b6ee1" stroke-opacity="0.5" rx="8"/>
+        <text x="310" y="320" font-family="Syne" font-size="12" font-weight="700" fill="#e8ecf8">🔄 Webhook Handlers</text>
+        <text x="310" y="335" font-family="DM Sans" font-size="10" fill="#7a8299">Inbound from Terra/Vital</text>
+        <text x="310" y="349" font-family="DM Sans" font-size="10" fill="#7a8299">Real-time sync events</text>
+        <text x="310" y="363" font-family="DM Sans" font-size="10" fill="#7a8299">Validate &amp; persist</text>
+
+        <rect x="500" y="300" width="190" height="65" fill="#161c2d" stroke="#5b6ee1" stroke-opacity="0.5" rx="8"/>
+        <text x="520" y="320" font-family="Syne" font-size="12" font-weight="700" fill="#e8ecf8">⏰ Job Scheduler</text>
+        <text x="520" y="335" font-family="DM Sans" font-size="10" fill="#7a8299">Inngest / Trigger.dev</text>
+        <text x="520" y="349" font-family="DM Sans" font-size="10" fill="#7a8299">Dose reminders</text>
+        <text x="520" y="363" font-family="DM Sans" font-size="10" fill="#7a8299">Daily summaries</text>
+
+        <rect x="710" y="300" width="120" height="65" fill="#161c2d" stroke="#a29bfe" stroke-opacity="0.5" rx="8"/>
+        <text x="730" y="320" font-family="Syne" font-size="12" font-weight="700" fill="#e8ecf8">🤖 AI Service</text>
+        <text x="730" y="335" font-family="DM Sans" font-size="10" fill="#7a8299">Claude API</text>
+        <text x="730" y="349" font-family="DM Sans" font-size="10" fill="#7a8299">Insights</text>
+        <text x="730" y="363" font-family="DM Sans" font-size="10" fill="#7a8299">Suggestions</text>
+
+        <!-- Arrow split -->
+        <line x1="300" y1="385" x2="300" y2="425" stroke="#7a8299" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="600" y1="385" x2="600" y2="425" stroke="#7a8299" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+        <!-- LAYER 4: DATA + AGGREGATION -->
+        <rect x="40" y="435" width="395" height="100" fill="url(#dataGrad)" stroke="#ffe66d" stroke-opacity="0.4" rx="12"/>
+        <text x="60" y="460" font-family="Syne" font-size="11" font-weight="700" fill="#ffe66d" letter-spacing="2">DATA STORE</text>
+
+        <rect x="60" y="475" width="170" height="50" fill="#161c2d" stroke="#ffe66d" stroke-opacity="0.5" rx="8"/>
+        <text x="80" y="495" font-family="Syne" font-size="12" font-weight="700" fill="#e8ecf8">🐘 Postgres (Supabase)</text>
+        <text x="80" y="509" font-family="DM Sans" font-size="10" fill="#7a8299">Users, workouts, doses</text>
+        <text x="80" y="521" font-family="DM Sans" font-size="10" fill="#7a8299">Settings, integrations</text>
+
+        <rect x="240" y="475" width="180" height="50" fill="#161c2d" stroke="#ffe66d" stroke-opacity="0.5" rx="8"/>
+        <text x="260" y="495" font-family="Syne" font-size="12" font-weight="700" fill="#e8ecf8">📊 Time-Series</text>
+        <text x="260" y="509" font-family="DM Sans" font-size="10" fill="#7a8299">TimescaleDB extension</text>
+        <text x="260" y="521" font-family="DM Sans" font-size="10" fill="#7a8299">HRV, weight, BP over time</text>
+
+        <rect x="465" y="435" width="395" height="100" fill="url(#dataGrad)" stroke="#fd9644" stroke-opacity="0.4" rx="12"/>
+        <text x="485" y="460" font-family="Syne" font-size="11" font-weight="700" fill="#fd9644" letter-spacing="2">AGGREGATION</text>
+
+        <rect x="485" y="475" width="170" height="50" fill="#161c2d" stroke="#fd9644" stroke-opacity="0.5" rx="8"/>
+        <text x="505" y="495" font-family="Syne" font-size="12" font-weight="700" fill="#e8ecf8">🔌 Terra / Vital SDK</text>
+        <text x="505" y="509" font-family="DM Sans" font-size="10" fill="#7a8299">Pull from Apple, Oura,</text>
+        <text x="505" y="521" font-family="DM Sans" font-size="10" fill="#7a8299">Withings via single API</text>
+
+        <rect x="665" y="475" width="180" height="50" fill="#161c2d" stroke="#fd9644" stroke-opacity="0.5" rx="8"/>
+        <text x="685" y="495" font-family="Syne" font-size="12" font-weight="700" fill="#e8ecf8">📬 Notifications</text>
+        <text x="685" y="509" font-family="DM Sans" font-size="10" fill="#7a8299">OneSignal (push)</text>
+        <text x="685" y="521" font-family="DM Sans" font-size="10" fill="#7a8299">Twilio (SMS)</text>
+
+        <line x1="650" y1="540" x2="650" y2="565" stroke="#7a8299" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+        <!-- LAYER 5: EXTERNAL SOURCES -->
+        <rect x="40" y="575" width="820" height="40" fill="#0d1117" stroke="#2a3350" rx="8"/>
+        <text x="60" y="599" font-family="Syne" font-size="10" font-weight="700" fill="#7a8299" letter-spacing="2">EXTERNAL DATA SOURCES</text>
+        <text x="280" y="599" font-family="DM Sans" font-size="11" fill="#ff6b6b">🍎 Apple Health</text>
+        <text x="400" y="599" font-family="DM Sans" font-size="11" fill="#ffe66d">💍 Oura</text>
+        <text x="475" y="599" font-family="DM Sans" font-size="11" fill="#4ecdc4">⚖️ Withings</text>
+        <text x="570" y="599" font-family="DM Sans" font-size="11" fill="#a29bfe">🤖 AI Fitness</text>
+        <text x="680" y="599" font-family="DM Sans" font-size="11" fill="#fd9644">🔥 Sauna (manual)</text>
+      </svg>
+    </div>
+
+    <h2>Stack Choices · The Why</h2>
+
+    <div class="card">
+      <div class="card-title">Frontend</div>
+      <div class="grid-2">
+        <div class="layer">
+          <div class="layer-name">Next.js 15 + React</div>
+          <div class="layer-tech">Vercel · TypeScript · Tailwind</div>
+          <div class="layer-desc">Full-stack framework. API routes live alongside the UI which means one repo, one deploy. Server Components for the dashboard means data is rendered server-side and the client gets a fast first paint.</div>
+        </div>
+        <div class="layer" style="border-color: #a29bfe;">
+          <div class="layer-name">iOS Companion (optional, V2)</div>
+          <div class="layer-tech" style="color: #a29bfe;">Swift · HealthKit · TestFlight</div>
+          <div class="layer-desc">Skip if using an aggregator. Build only if you need: rich Apple Watch complications, true real-time HealthKit, or App Store distribution.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Backend Services</div>
+      <div class="grid-3">
+        <div class="layer" style="border-color: #5b6ee1;">
+          <div class="layer-name">API Routes</div>
+          <div class="layer-tech" style="color: #5b6ee1;">Next.js / Hono</div>
+          <div class="layer-desc">REST endpoints for CRUD on workouts, doses, settings. Stays in the same repo as frontend.</div>
+        </div>
+        <div class="layer" style="border-color: #5b6ee1;">
+          <div class="layer-name">Webhooks</div>
+          <div class="layer-tech" style="color: #5b6ee1;">/api/webhooks/*</div>
+          <div class="layer-desc">Terra/Vital push events when new health data arrives. Validates signature, parses, persists.</div>
+        </div>
+        <div class="layer" style="border-color: #a29bfe;">
+          <div class="layer-name">Scheduled Jobs</div>
+          <div class="layer-tech" style="color: #a29bfe;">Inngest / Trigger.dev</div>
+          <div class="layer-desc">Tuesday 7:30 AM dose reminder. Daily 9 PM summary. Weekly Sunday review email.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Data Layer</div>
+      <div class="grid-2">
+        <div class="layer" style="border-color: #ffe66d;">
+          <div class="layer-name">Postgres on Supabase</div>
+          <div class="layer-tech" style="color: #ffe66d;">Supabase · TimescaleDB extension</div>
+          <div class="layer-desc">One database for everything. Relational tables for users, workouts, doses, settings. TimescaleDB extension turns the same DB into a time-series store for HRV, weight, blood pressure trends — no separate metrics database needed.</div>
+        </div>
+        <div class="layer" style="border-color: #ffe66d;">
+          <div class="layer-name">Sample Schema</div>
+          <div class="layer-tech" style="color: #ffe66d;">Core tables</div>
+          <div class="layer-desc mono" style="font-size: 10px; line-height: 1.6;">
+            users · profiles · integrations<br/>
+            doses · workout_sessions · sets<br/>
+            metrics_timeseries (hypertable)<br/>
+            sleep_logs · sauna_sessions · ai_insights
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">External Services</div>
+      <div class="grid-4">
+        <div class="layer" style="border-color: #fd9644;">
+          <div class="layer-name">Terra / Vital</div>
+          <div class="layer-tech" style="color: #fd9644;">Health aggregator</div>
+          <div class="layer-desc">Single API for Apple, Oura, Withings.</div>
+        </div>
+        <div class="layer" style="border-color: #4ecdc4;">
+          <div class="layer-name">Clerk / Supabase Auth</div>
+          <div class="layer-tech" style="color: #4ecdc4;">Authentication</div>
+          <div class="layer-desc">Magic links, social login, JWTs.</div>
+        </div>
+        <div class="layer" style="border-color: #a29bfe;">
+          <div class="layer-name">OneSignal</div>
+          <div class="layer-tech" style="color: #a29bfe;">Push + email</div>
+          <div class="layer-desc">Dose reminders, workout nudges.</div>
+        </div>
+        <div class="layer" style="border-color: #ff6b6b;">
+          <div class="layer-name">Anthropic API</div>
+          <div class="layer-tech" style="color: #ff6b6b;">Claude</div>
+          <div class="layer-desc">Workout suggestions, insights, weekly review.</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>Build Phases</h2>
+
+    <div class="grid-3">
+      <div class="card" style="background: linear-gradient(135deg, rgba(78,205,196,0.08) 0%, #1a2035 100%); border-color: #4ecdc450;">
+        <div class="pill">PHASE 1 · MVP</div>
+        <div style="font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; margin: 10px 0 6px;">Solo Build</div>
+        <div style="font-size: 12px; color: #7a8299; margin-bottom: 12px;">~2–3 weekends</div>
+        <ul style="font-size: 12px; color: #c0c8e0; padding-left: 18px; line-height: 1.8;">
+          <li>Next.js + Supabase setup</li>
+          <li>Manual logging only (dose, workouts)</li>
+          <li>Withings + Oura via direct OAuth</li>
+          <li>Dashboard, workout tracker, post-workout summary</li>
+          <li>Email reminders via Resend</li>
+          <li>Deploy to Vercel</li>
+        </ul>
+        <div class="pill-cost" style="margin-top: 12px;">~$0–10/month</div>
+      </div>
+
+      <div class="card" style="background: linear-gradient(135deg, rgba(162,155,254,0.08) 0%, #1a2035 100%); border-color: #a29bfe50;">
+        <div class="pill pill-purple">PHASE 2 · V1</div>
+        <div style="font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; margin: 10px 0 6px;">Full Integration</div>
+        <div style="font-size: 12px; color: #7a8299; margin-bottom: 12px;">~2 weeks of work</div>
+        <ul style="font-size: 12px; color: #c0c8e0; padding-left: 18px; line-height: 1.8;">
+          <li>Add Terra or Vital aggregator</li>
+          <li>Apple Health via aggregator bridge</li>
+          <li>Webhook handlers for real-time sync</li>
+          <li>Push notifications (OneSignal)</li>
+          <li>Claude AI for workout suggestions</li>
+          <li>Inngest for scheduled jobs</li>
+        </ul>
+        <div class="pill-cost" style="margin-top: 12px;">~$20–40/month</div>
+      </div>
+
+      <div class="card" style="background: linear-gradient(135deg, rgba(253,150,68,0.08) 0%, #1a2035 100%); border-color: #fd964450;">
+        <div class="pill pill-warn">PHASE 3 · V2</div>
+        <div style="font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; margin: 10px 0 6px;">Production Polish</div>
+        <div style="font-size: 12px; color: #7a8299; margin-bottom: 12px;">~3–4 weeks</div>
+        <ul style="font-size: 12px; color: #c0c8e0; padding-left: 18px; line-height: 1.8;">
+          <li>iOS companion app (Swift + HealthKit)</li>
+          <li>Apple Watch complications</li>
+          <li>Multi-user / family sharing</li>
+          <li>Provider sharing (HIPAA-aware)</li>
+          <li>Audit logs, encryption at rest</li>
+          <li>App Store submission</li>
+        </ul>
+        <div class="pill-cost" style="margin-top: 12px;">~$50–100/month</div>
+      </div>
+    </div>
+
+    <h2>Cost Model</h2>
+
+    <div class="card">
+      <div class="card-title">Monthly cost at different scales</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Solo (you)</th>
+            <th>10 Users</th>
+            <th>100 Users</th>
+            <th>1000 Users</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Vercel (hosting)</td>
+            <td class="mono">Free</td>
+            <td class="mono">Free</td>
+            <td class="mono">$20</td>
+            <td class="mono">$20</td>
+          </tr>
+          <tr>
+            <td>Supabase (Postgres + Auth)</td>
+            <td class="mono">Free</td>
+            <td class="mono">Free</td>
+            <td class="mono">$25</td>
+            <td class="mono">$25</td>
+          </tr>
+          <tr>
+            <td>Terra / Vital</td>
+            <td class="mono accent">Free</td>
+            <td class="mono accent">Free</td>
+            <td class="mono">$10</td>
+            <td class="mono">$100</td>
+          </tr>
+          <tr>
+            <td>OneSignal</td>
+            <td class="mono">Free</td>
+            <td class="mono">Free</td>
+            <td class="mono">Free</td>
+            <td class="mono">$9</td>
+          </tr>
+          <tr>
+            <td>Inngest (jobs)</td>
+            <td class="mono">Free</td>
+            <td class="mono">Free</td>
+            <td class="mono">$20</td>
+            <td class="mono">$20</td>
+          </tr>
+          <tr>
+            <td>Anthropic API (Claude)</td>
+            <td class="mono">$2</td>
+            <td class="mono">$15</td>
+            <td class="mono">$80</td>
+            <td class="mono">$400</td>
+          </tr>
+          <tr>
+            <td>Domain + email (Resend)</td>
+            <td class="mono">$2</td>
+            <td class="mono">$2</td>
+            <td class="mono">$20</td>
+            <td class="mono">$20</td>
+          </tr>
+          <tr style="background: rgba(78,205,196,0.05);">
+            <td><strong>Total</strong></td>
+            <td class="mono accent"><strong>~$4/mo</strong></td>
+            <td class="mono accent"><strong>~$17/mo</strong></td>
+            <td class="mono accent-purple"><strong>~$175/mo</strong></td>
+            <td class="mono accent-orange"><strong>~$594/mo</strong></td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size: 12px; color: #7a8299; margin-top: 14px;">
+        Rough estimates. Actual costs depend on activity volume. The Anthropic API line scales most aggressively because it's metered per token — a heavy AI feature set could push costs higher. The aggregator (Terra/Vital) tier pricing varies; both have generous free tiers for early development.
+      </p>
+    </div>
+
+    <h2>Key Decisions &amp; Risks</h2>
+
+    <div class="card">
+      <div class="grid-2">
+        <div>
+          <div style="font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; color: #4ecdc4; margin-bottom: 8px;">✓ Smart Choices</div>
+          <ul style="font-size: 13px; color: #c0c8e0; padding-left: 18px; line-height: 1.7;">
+            <li><strong>Aggregator over direct integration:</strong> Saves 60–80% of integration time. The "build it yourself" temptation is a trap unless you're at scale.</li>
+            <li><strong>Postgres over NoSQL:</strong> Health data is highly relational. TimescaleDB handles the time-series workload without a second database.</li>
+            <li><strong>Next.js over split frontend/backend:</strong> One repo, one deploy, shared types. Splitting is premature optimization.</li>
+            <li><strong>Server-side AI calls:</strong> Never put the Claude API key in the client. Proxy through your API.</li>
+          </ul>
+        </div>
+        <div>
+          <div style="font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; color: #fd9644; margin-bottom: 8px;">⚠ Risks to Watch</div>
+          <ul style="font-size: 13px; color: #c0c8e0; padding-left: 18px; line-height: 1.7;">
+            <li><strong>HIPAA compliance:</strong> If sharing with providers, you'll need a BAA with vendors. Most consumer-grade services don't sign them. Consider AWS HIPAA-eligible services if going this route.</li>
+            <li><strong>Aggregator lock-in:</strong> Terra/Vital go down → your app goes down. Consider building direct fallbacks for Withings and Oura since those are easy.</li>
+            <li><strong>Token refresh:</strong> OAuth tokens expire. Build retry/refresh logic into the webhook handlers from day 1.</li>
+            <li><strong>Data privacy:</strong> Encrypt PHI at rest. Use row-level security in Supabase. Document a deletion flow for GDPR/CCPA.</li>
+            <li><strong>Apple Health quirks:</strong> Even with an aggregator, Apple Health data lags by minutes-to-hours and can have gaps. Plan UX for stale data.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <h2>Recommended First Step</h2>
+
+    <div class="card" style="background: linear-gradient(135deg, #1d2e3d 0%, #1a2035 100%); border-color: #4ecdc450;">
+      <div style="font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; margin-bottom: 8px;">Start with a 1-day spike</div>
+      <p>Before committing, do this: spin up a free Supabase project, sign up for Terra's free tier, and connect your own Oura ring. See real data flowing into your database within an afternoon. That single working integration tells you 80% of what you need to know about the rest of the build.</p>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px;">
+        <span class="pill">Day 1: Supabase setup</span>
+        <span class="pill">Day 1: Terra account + first sync</span>
+        <span class="pill pill-purple">Weekend 1: Auth + dashboard skeleton</span>
+        <span class="pill pill-cost">Weekend 2: Workout tracker</span>
+        <span class="pill pill-warn">Weekend 3: Reminders + AI</span>
+      </div>
+    </div>
+
+    <div style="margin-top: 40px; padding: 20px; text-align: center; color: #4a5568; font-size: 12px; border-top: 1px solid #1e2640;">
+      Architecture v1 · Health Dashboard · Drafted for Terry Morris
+    </div>
+  </div>
+</body>
+</html>
