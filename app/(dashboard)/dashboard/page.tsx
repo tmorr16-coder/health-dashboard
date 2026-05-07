@@ -110,6 +110,8 @@ export default async function DashboardPage() {
     { data: distanceRows },
     { data: hrRows },
     { data: recentWorkoutRows },
+    { data: latestWeightRows },
+    { data: oldestWeightRows },
   ] = await Promise.all([
     db.from("apple_health_metrics")
       .select("created_at")
@@ -146,6 +148,23 @@ export default async function DashboardPage() {
       .gte("timestamp", sevenDaysAgo.toISOString())
       .order("timestamp", { ascending: false })
       .limit(50),
+    // Withings weight: most recent reading
+    db.from("apple_health_metrics")
+      .select("value")
+      .eq("user_id", userId)
+      .eq("source", "withings")
+      .eq("metric_name", "weight")
+      .order("timestamp", { ascending: false })
+      .limit(1),
+    // Withings weight: oldest reading in last 30 days (for delta)
+    db.from("apple_health_metrics")
+      .select("value")
+      .eq("user_id", userId)
+      .eq("source", "withings")
+      .eq("metric_name", "weight")
+      .gte("timestamp", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+      .order("timestamp", { ascending: true })
+      .limit(1),
   ]);
 
   const lastSync: string | null =
@@ -173,6 +192,12 @@ export default async function DashboardPage() {
 
   const recentWorkouts: WorkoutRow[] =
     (recentWorkoutRows as WorkoutRow[] | null) ?? [];
+
+  type WtRow = { value: number };
+  const withingsCurrentLbs: number | null =
+    (latestWeightRows as WtRow[] | null)?.[0]?.value ?? null;
+  const withingsOldestLbs: number | null =
+    (oldestWeightRows as WtRow[] | null)?.[0]?.value ?? null;
 
   // ── Dose data ────────────────────────────────────────────────────────────────
   const hasRealDoses = rawDoses && rawDoses.length > 0;
@@ -206,16 +231,32 @@ export default async function DashboardPage() {
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div style={{ padding: "20px 24px 12px", borderBottom: "1px solid #1a2035" }}>
-        <div
-          style={{
-            fontSize: 12,
-            color: "#4a5568",
-            letterSpacing: 2,
-            textTransform: "uppercase",
-            marginBottom: 4,
-          }}
-        >
-          {today}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div
+            style={{
+              fontSize: 12,
+              color: "#4a5568",
+              letterSpacing: 2,
+              textTransform: "uppercase",
+              marginBottom: 4,
+            }}
+          >
+            {today}
+          </div>
+          <Link
+            href="/dashboard/settings/integrations"
+            style={{
+              fontSize: 11,
+              color: "#3a4460",
+              textDecoration: "none",
+              padding: "4px 10px",
+              border: "1px solid #2a3350",
+              borderRadius: 8,
+              letterSpacing: 0.5,
+            }}
+          >
+            ⚙ Integrations
+          </Link>
         </div>
         <div style={{ fontFamily: "var(--font-syne)", fontSize: 26, fontWeight: 800 }}>
           {greeting}, <span style={{ color: "#4ecdc4" }}>Terry</span> 👋
@@ -435,11 +476,29 @@ export default async function DashboardPage() {
                 >
                   Weight
                 </div>
-                <div
-                  style={{ fontFamily: "var(--font-syne)", fontSize: 18, fontWeight: 700, color: "#4ecdc4" }}
-                >
-                  −{weightLost} lbs
-                </div>
+                {withingsCurrentLbs !== null ? (
+                  <>
+                    <div
+                      style={{ fontFamily: "var(--font-syne)", fontSize: 18, fontWeight: 700, color: "#4ecdc4" }}
+                    >
+                      {withingsCurrentLbs.toFixed(1)} lbs
+                    </div>
+                    {withingsOldestLbs !== null && withingsOldestLbs !== withingsCurrentLbs && (
+                      <div style={{ fontSize: 10, color: "#7a8299", marginTop: 2 }}>
+                        {(() => {
+                          const delta = withingsCurrentLbs - withingsOldestLbs;
+                          return `${delta > 0 ? "+" : ""}${delta.toFixed(1)} lbs · 30d`;
+                        })()}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div
+                    style={{ fontFamily: "var(--font-syne)", fontSize: 18, fontWeight: 700, color: "#4ecdc4" }}
+                  >
+                    −{weightLost} lbs
+                  </div>
+                )}
               </div>
               <div
                 style={{

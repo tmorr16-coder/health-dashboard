@@ -194,6 +194,32 @@ export type Database = {
           raw_data?: Record<string, unknown> | null;
         };
       };
+
+      withings_tokens: {
+        Row: {
+          user_id: string;
+          access_token: string;
+          refresh_token: string;
+          expires_at: string;
+          scope: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          access_token: string;
+          refresh_token: string;
+          expires_at: string;
+          scope?: string | null;
+        };
+        Update: {
+          access_token?: string;
+          refresh_token?: string;
+          expires_at?: string;
+          scope?: string | null;
+          updated_at?: string;
+        };
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
