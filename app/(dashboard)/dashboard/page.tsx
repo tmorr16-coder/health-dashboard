@@ -90,6 +90,7 @@ export default async function DashboardPage() {
     { data: energyRows },
     { data: distanceRows },
     { data: hrRows },
+    { data: mealRows },
     { data: recentWorkoutRows },
     { data: weekSessionRows },
     { data: weekAppleRows },
@@ -109,7 +110,7 @@ export default async function DashboardPage() {
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
     // Today's activity
     db.from("apple_health_metrics")
-      .select("value")
+      .select("value, source")
       .eq("user_id", userId)
       .in("metric_name", ["step_count", "Step Count", "Steps"])
       .gte("timestamp", todayStart.toISOString())
@@ -132,6 +133,11 @@ export default async function DashboardPage() {
       .in("metric_name", ["heart_rate", "Heart Rate"])
       .order("timestamp", { ascending: false })
       .limit(1),
+    // Today's nutrition summary
+    db.from("meals")
+      .select("calories_est")
+      .eq("user_id", userId)
+      .eq("date", new Date().toLocaleDateString("sv")),
     // Recent workouts (last 7 days)
     db.from("apple_health_workouts")
       .select("id, timestamp, workout_type, duration_sec, distance_m, calories")
@@ -179,6 +185,7 @@ export default async function DashboardPage() {
   // ── Derived values ────────────────────────────────────────────────────────
 
   type ScoreRow = { value: number } | null;
+  const scoresFromOura = !!(readinessRow || activityRow || sleepScoreRow);
   const SCORES = [
     { label: "Readiness", value: Math.round((readinessRow  as ScoreRow)?.value ?? SCORE_FALLBACKS[0].value), color: SCORE_FALLBACKS[0].color },
     { label: "Activity",  value: Math.round((activityRow   as ScoreRow)?.value ?? SCORE_FALLBACKS[1].value), color: SCORE_FALLBACKS[1].color },
@@ -193,10 +200,13 @@ export default async function DashboardPage() {
     { key: "withings", icon: "⚖️", label: "Withings", ts: (withingsLastRow as SyncRow)?.created_at ?? null },
   ].filter((s) => s.ts !== null) as { key: string; icon: string; label: string; ts: string }[];
 
-  type MetricRow = { value: number };
-  const steps: number | null = (stepsRows as MetricRow[] | null)?.length
-    ? Math.round((stepsRows as MetricRow[]).reduce((s, r) => s + r.value, 0))
+  type MetricRow = { value: number; source?: string };
+  const stepsData = (stepsRows as MetricRow[] | null) ?? [];
+  const steps: number | null = stepsData.length
+    ? Math.round(stepsData.reduce((s, r) => s + r.value, 0))
     : null;
+  const activitySource: string | null = stepsData[0]?.source ?? null;
+
   const activeEnergyCal: number | null = (energyRows as MetricRow[] | null)?.length
     ? Math.round((energyRows as MetricRow[]).reduce((s, r) => s + r.value, 0))
     : null;
@@ -206,7 +216,12 @@ export default async function DashboardPage() {
     ? parseFloat((distanceRows as DistRow[]).reduce((s, r) => s + toMiles(r.value, r.unit), 0).toFixed(2))
     : null;
 
-  const heartRateBpm: number | null = (hrRows as MetricRow[] | null)?.[0]?.value ?? null;
+  const heartRateBpm: number | null = (hrRows as { value: number }[] | null)?.[0]?.value ?? null;
+
+  type MealRow = { calories_est: number | null };
+  const mealData = (mealRows as MealRow[] | null) ?? [];
+  const todayCalories = mealData.reduce((sum, m) => sum + (m.calories_est ?? 0), 0);
+  const mealCount = mealData.length;
 
   const recentWorkouts: WorkoutRow[] = (recentWorkoutRows as WorkoutRow[] | null) ?? [];
 
@@ -487,6 +502,7 @@ export default async function DashboardPage() {
             activeEnergyCal={activeEnergyCal}
             distanceMiles={distanceMiles}
             heartRateBpm={heartRateBpm}
+            source={activitySource}
           />
           <div
             style={{
@@ -496,21 +512,69 @@ export default async function DashboardPage() {
               padding: "16px",
             }}
           >
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 500,
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: "var(--color-ink-3)",
-                marginBottom: 16,
-              }}
-            >
-              Today&apos;s Scores
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 500,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  color: "var(--color-ink-3)",
+                }}
+              >
+                Today&apos;s Scores
+              </div>
+              <div style={{ fontSize: 10, color: "var(--color-ink-4)" }}>
+                {scoresFromOura ? "via 💍 Oura" : "Estimated"}
+              </div>
             </div>
             <ScoreRings scores={SCORES} />
           </div>
         </div>
+
+        {/* Nutrition summary */}
+        <Link href="/dashboard/nutrition" style={{ textDecoration: "none" }}>
+          <div
+            style={{
+              background: "var(--color-bg-raised)",
+              border: "1px solid var(--color-line)",
+              borderRadius: 14,
+              padding: "16px 18px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 500,
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  color: "var(--color-ink-3)",
+                }}
+              >
+                Today&apos;s Nutrition
+              </div>
+              <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>Log meals →</span>
+            </div>
+            {mealCount > 0 ? (
+              <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                <div>
+                  <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 400, letterSpacing: "-0.02em", lineHeight: 1, color: "var(--color-ink)" }}>
+                    {todayCalories.toLocaleString()}
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 2 }}>kcal logged</div>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+                  {mealCount} meal{mealCount !== 1 ? "s" : ""} today
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: "var(--color-ink-4)" }}>
+                No meals logged yet today. Tap to add.
+              </div>
+            )}
+          </div>
+        </Link>
 
         {/* Recent Workouts */}
         <RecentWorkoutsCard workouts={recentWorkouts} />

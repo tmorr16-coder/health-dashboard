@@ -8,6 +8,33 @@ interface Props {
   placeholder?: string;
   welcomeMessage?: string;
   compact?: boolean;
+  addProfileContext?: boolean;
+}
+
+const STORAGE_KEY = "health-dashboard-profile";
+
+function buildProfileAddendum(): string {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return "";
+    const p = JSON.parse(raw);
+    const goals: string[] = Array.isArray(p.fitnessGoals)
+      ? p.fitnessGoals
+      : p.fitnessGoal
+      ? [p.fitnessGoal]
+      : [];
+    const parts: string[] = [];
+    if (p.name) parts.push(`User's name: ${p.name}.`);
+    if (p.age) parts.push(`Age: ${p.age}.`);
+    if (goals.length) parts.push(`Fitness goals: ${goals.join(", ")}.`);
+    if (p.activityLevel) parts.push(`Activity level: ${p.activityLevel}.`);
+    if (p.currentWeightLbs) parts.push(`Current weight: ${p.currentWeightLbs} lbs.`);
+    if (p.targetWeightLbs) parts.push(`Target weight: ${p.targetWeightLbs} lbs.`);
+    if (p.dietary?.length) parts.push(`Dietary preferences: ${p.dietary.join(", ")}.`);
+    return parts.length ? `\n\nUser profile: ${parts.join(" ")}` : "";
+  } catch {
+    return "";
+  }
 }
 
 export default function ChatWidget({
@@ -15,14 +42,22 @@ export default function ChatWidget({
   placeholder = "Ask anything…",
   welcomeMessage,
   compact = false,
+  addProfileContext = false,
 }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>(
     welcomeMessage ? [{ role: "assistant", content: welcomeMessage }] : []
   );
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [enrichedContext, setEnrichedContext] = useState(systemContext);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!addProfileContext) return;
+    const addendum = buildProfileAddendum();
+    setEnrichedContext(systemContext + addendum);
+  }, [systemContext, addProfileContext]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -42,7 +77,7 @@ export default function ChatWidget({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next, systemContext }),
+        body: JSON.stringify({ messages: next, systemContext: enrichedContext }),
       });
       const data = (await res.json()) as { reply?: string; error?: string };
       if (data.reply) {

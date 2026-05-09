@@ -11,6 +11,8 @@ export async function quickLogWorkout(data: {
   type: string;
   durationMin: number;
   notes: string | null;
+  distanceMiles?: number | null;
+  effort?: string | null;
 }): Promise<{ error?: string }> {
   const db: AnyClient = createAdminClient();
   const userId = getCurrentUserId();
@@ -21,7 +23,26 @@ export async function quickLogWorkout(data: {
     type: data.type,
     duration_min: data.durationMin,
     notes: data.notes,
+    ...(data.distanceMiles != null ? { distance_miles: data.distanceMiles } : {}),
+    ...(data.effort ? { effort: data.effort } : {}),
   });
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/dashboard/train");
+  revalidatePath("/dashboard");
+  return {};
+}
+
+export async function deleteWorkoutSession(id: string): Promise<{ error?: string }> {
+  const db: AnyClient = createAdminClient();
+  const userId = getCurrentUserId();
+
+  const { error } = await db
+    .from("workout_sessions")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", userId);
 
   if (error) return { error: error.message };
 

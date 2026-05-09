@@ -6,18 +6,10 @@ import { getCurrentUserId } from "@/lib/auth";
 import { EXERCISE_LIBRARY } from "../workout/exercise-library";
 import Body, { type MuscleGroup } from "../_components/Body";
 import ChatWidget from "../_components/ChatWidget";
+import WorkoutHistoryClient, { type UnifiedWorkout } from "./_components/WorkoutHistoryClient";
 
 const PRIMARY_MUSCLES: MuscleGroup[] = ["quads", "glutes", "hamstrings"];
 const SECONDARY_MUSCLES: MuscleGroup[] = ["calves"];
-
-interface UnifiedWorkout {
-  id: string;
-  dateStr: string; // YYYY-MM-DD local
-  label: string;
-  durationLabel: string | null;
-  source: "manual" | "apple";
-  meta: string | null; // distance, calories etc.
-}
 
 function toDateStr(d: Date): string {
   return d.toLocaleDateString("sv");
@@ -279,7 +271,7 @@ export default async function TrainPage() {
       </div>
 
       {/* Quick log + Build your own */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
         <Link href="/dashboard/workout/builder" style={{ textDecoration: "none" }}>
           <div
             style={{
@@ -352,125 +344,14 @@ export default async function TrainPage() {
         </Link>
       </div>
 
-      {/* Unified workout history */}
-      {groups.length > 0 ? (
-        <div style={{ marginBottom: 24 }}>
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 500,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: "var(--color-ink-3)",
-              marginBottom: 10,
-            }}
-          >
-            History · Last 30 days
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {groups.map(({ day, items }) => (
-              <div key={day}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: "var(--color-ink-4)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.12em",
-                    fontWeight: 500,
-                    marginBottom: 6,
-                  }}
-                >
-                  {day}
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {items.map((w) => (
-                    <div
-                      key={w.id}
-                      style={{
-                        background: "var(--color-bg-raised)",
-                        border: "1px solid var(--color-line)",
-                        borderRadius: 12,
-                        padding: "12px 14px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
-                      }}
-                    >
-                      {/* Source badge */}
-                      <div
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 8,
-                          background: w.source === "manual"
-                            ? "var(--color-accent-soft)"
-                            : "var(--color-bg-sunk)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 15,
-                          flexShrink: 0,
-                        }}
-                        title={w.source === "manual" ? "Logged in-app" : "From Apple Health"}
-                      >
-                        {w.source === "manual" ? "🏋️" : "🍎"}
-                      </div>
-
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 500,
-                            color: "var(--color-ink)",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {w.label}
-                        </div>
-                        {(w.durationLabel || w.meta) && (
-                          <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 2 }}>
-                            {[w.durationLabel, w.meta].filter(Boolean).join(" · ")}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div
-          style={{
-            background: "var(--color-bg-raised)",
-            border: "1px solid var(--color-line)",
-            borderRadius: 14,
-            padding: "24px 16px",
-            textAlign: "center",
-            marginBottom: 24,
-          }}
-        >
-          <div style={{ fontSize: 13, color: "var(--color-ink-4)" }}>
-            No workouts in the last 30 days.
-          </div>
-          <div style={{ fontSize: 12, color: "var(--color-ink-4)", marginTop: 4 }}>
-            Log one above or sync from Apple Health.
-          </div>
-        </div>
-      )}
-
-      {/* Workout coach chat */}
+      {/* Workout coach chat — above history */}
       <div
         style={{
           background: "var(--color-bg-raised)",
           border: "1px solid var(--color-line)",
           borderRadius: 14,
           padding: "16px",
-          marginBottom: 8,
+          marginBottom: 20,
         }}
       >
         <div
@@ -489,8 +370,27 @@ export default async function TrainPage() {
           systemContext="You are an expert personal trainer and strength coach. Give specific, actionable advice about programming, form, progressive overload, and recovery. Keep answers concise — 2-4 sentences unless the question genuinely requires more. Be encouraging but direct."
           placeholder="Ask about sets, reps, form, programming…"
           welcomeMessage="Ready to help with your training. What do you want to work on?"
+          addProfileContext
         />
       </div>
+
+      {/* Unified workout history */}
+      <div>
+        <div
+          style={{
+            fontSize: 10,
+            fontWeight: 500,
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: "var(--color-ink-3)",
+            marginBottom: 10,
+          }}
+        >
+          History · Last 30 days
+        </div>
+        <WorkoutHistoryClient groups={groups} />
+      </div>
+
     </div>
   );
 }

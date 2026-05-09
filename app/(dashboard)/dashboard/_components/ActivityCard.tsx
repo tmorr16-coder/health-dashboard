@@ -3,7 +3,14 @@ interface Props {
   activeEnergyCal: number | null;
   distanceMiles: number | null;
   heartRateBpm: number | null;
+  source?: string | null;
 }
+
+const SOURCE_LABELS: Record<string, string> = {
+  apple_health: "⌚ Apple Watch",
+  oura:         "💍 Oura",
+  withings:     "⚖️ Withings",
+};
 
 const STATS = [
   {
@@ -41,6 +48,7 @@ export default function ActivityCard({
   activeEnergyCal,
   distanceMiles,
   heartRateBpm,
+  source,
 }: Props) {
   const values: Record<string, number | null> = {
     steps,
@@ -48,6 +56,9 @@ export default function ActivityCard({
     distanceMiles,
     heartRateBpm,
   };
+
+  const sourceLabel = source ? SOURCE_LABELS[source] ?? source : null;
+  const hasData = steps !== null || activeEnergyCal !== null || distanceMiles !== null || heartRateBpm !== null;
 
   return (
     <div
@@ -59,13 +70,25 @@ export default function ActivityCard({
         padding: "20px 22px",
       }}
     >
-      <div
-        style={{
-          fontSize: 10, fontWeight: 500, letterSpacing: "0.14em",
-          textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 14,
-        }}
-      >
-        Today&apos;s Activity
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div
+          style={{
+            fontSize: 10, fontWeight: 500, letterSpacing: "0.14em",
+            textTransform: "uppercase", color: "var(--color-ink-3)",
+          }}
+        >
+          Today&apos;s Activity
+        </div>
+        {hasData && sourceLabel && (
+          <div style={{ fontSize: 10, color: "var(--color-ink-4)" }}>
+            via {sourceLabel}
+          </div>
+        )}
+        {!hasData && (
+          <div style={{ fontSize: 10, color: "var(--color-ink-4)" }}>
+            No data today
+          </div>
+        )}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>

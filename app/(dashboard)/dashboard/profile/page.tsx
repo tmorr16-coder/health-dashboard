@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 interface UserProfile {
   name: string;
   age: string;
-  fitnessGoal: string;
+  fitnessGoals: string[];
   activityLevel: string;
   dietary: string[];
   currentWeightLbs: string;
@@ -15,7 +15,7 @@ interface UserProfile {
 const DEFAULT_PROFILE: UserProfile = {
   name: "",
   age: "",
-  fitnessGoal: "",
+  fitnessGoals: [],
   activityLevel: "",
   dietary: [],
   currentWeightLbs: "",
@@ -30,6 +30,8 @@ const FITNESS_GOALS = [
   { value: "build_muscle",   label: "Build muscle" },
   { value: "endurance",      label: "Improve endurance" },
   { value: "general_health", label: "General health" },
+  { value: "flexibility",    label: "Flexibility & mobility" },
+  { value: "performance",    label: "Athletic performance" },
 ];
 
 const ACTIVITY_LEVELS = [
@@ -81,7 +83,14 @@ export default function ProfilePage() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setProfile({ ...DEFAULT_PROFILE, ...JSON.parse(raw) });
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      // Migrate old single-string fitnessGoal → array
+      if (typeof parsed.fitnessGoal === "string" && !parsed.fitnessGoals) {
+        parsed.fitnessGoals = parsed.fitnessGoal ? [parsed.fitnessGoal] : [];
+        delete parsed.fitnessGoal;
+      }
+      setProfile({ ...DEFAULT_PROFILE, ...parsed });
     } catch {
       // ignore
     }
@@ -89,6 +98,16 @@ export default function ProfilePage() {
 
   function update<K extends keyof UserProfile>(key: K, value: UserProfile[K]) {
     setProfile((p) => ({ ...p, [key]: value }));
+    setSaved(false);
+  }
+
+  function toggleGoal(value: string) {
+    setProfile((p) => {
+      const next = p.fitnessGoals.includes(value)
+        ? p.fitnessGoals.filter((g) => g !== value)
+        : [...p.fitnessGoals, value];
+      return { ...p, fitnessGoals: next };
+    });
     setSaved(false);
   }
 
@@ -218,7 +237,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Fitness goal */}
+        {/* Fitness goals — multi-select */}
         <div
           style={{
             background: "var(--color-bg-raised)",
@@ -227,46 +246,31 @@ export default function ProfilePage() {
             padding: "16px",
           }}
         >
-          <div style={{ ...fieldLabel, marginBottom: 12 }}>Fitness goal</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ ...fieldLabel, marginBottom: 4 }}>Fitness goals</div>
+          <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginBottom: 12 }}>
+            Select all that apply
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {FITNESS_GOALS.map((g) => {
-              const selected = profile.fitnessGoal === g.value;
+              const selected = profile.fitnessGoals.includes(g.value);
               return (
                 <button
                   key={g.value}
-                  onClick={() => update("fitnessGoal", selected ? "" : g.value)}
+                  onClick={() => toggleGoal(g.value)}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "12px 14px",
-                    borderRadius: 10,
+                    padding: "8px 14px",
+                    borderRadius: 20,
                     border: `1px solid ${selected ? "var(--color-accent)" : "var(--color-line)"}`,
                     background: selected ? "var(--color-accent-soft)" : "var(--color-bg-sunk)",
-                    color: selected ? "var(--color-accent)" : "var(--color-ink-2)",
-                    fontSize: 14,
+                    color: selected ? "var(--color-accent)" : "var(--color-ink-3)",
+                    fontSize: 13,
                     fontWeight: selected ? 600 : 400,
                     cursor: "pointer",
                     fontFamily: "inherit",
-                    textAlign: "left",
                     transition: "all 120ms",
                   }}
                 >
-                  <div
-                    style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: "50%",
-                      border: `2px solid ${selected ? "var(--color-accent)" : "var(--color-line-2)"}`,
-                      background: selected ? "var(--color-accent)" : "transparent",
-                      flexShrink: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {selected && <span style={{ color: "#fff", fontSize: 10 }}>✓</span>}
-                  </div>
+                  {selected && <span style={{ marginRight: 5 }}>✓</span>}
                   {g.label}
                 </button>
               );

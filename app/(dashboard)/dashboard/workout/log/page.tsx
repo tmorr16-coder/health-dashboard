@@ -20,7 +20,17 @@ const WORKOUT_TYPES = [
   "Mobility",
   "HIIT",
   "Swimming",
+  "Walking",
   "Other",
+];
+
+const DISTANCE_TYPES = new Set(["Cardio", "Running", "Cycling", "Swimming", "Walking"]);
+
+const EFFORT_OPTIONS = [
+  { value: "easy",     label: "Easy",     desc: "Comfortable" },
+  { value: "moderate", label: "Moderate", desc: "Challenging" },
+  { value: "hard",     label: "Hard",     desc: "Very hard" },
+  { value: "allout",   label: "All-out",  desc: "Max effort" },
 ];
 
 const fieldLabel: React.CSSProperties = {
@@ -39,10 +49,13 @@ export default function QuickLogPage() {
   const [type, setType] = useState("");
   const [customType, setCustomType] = useState("");
   const [duration, setDuration] = useState("45");
+  const [distance, setDistance] = useState("");
+  const [effort, setEffort] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
   const workoutLabel = type === "Other" ? customType.trim() : type;
+  const showDistance = DISTANCE_TYPES.has(type);
   const valid = workoutLabel.length > 0 && parseInt(duration) > 0;
 
   function handleSave() {
@@ -53,6 +66,8 @@ export default function QuickLogPage() {
         type: workoutLabel,
         durationMin: parseInt(duration),
         notes: notes.trim() || null,
+        distanceMiles: showDistance && distance ? parseFloat(distance) : null,
+        effort: effort || null,
       });
       router.push("/dashboard/train");
     });
@@ -228,6 +243,64 @@ export default function QuickLogPage() {
                 {m}m
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Distance — cardio types only */}
+        {showDistance && (
+          <div>
+            <div style={fieldLabel}>Distance (miles) — optional</div>
+            <input
+              value={distance}
+              onChange={(e) => setDistance(e.target.value)}
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="e.g. 3.1"
+              inputMode="decimal"
+              style={{
+                width: "100%",
+                padding: "11px 12px",
+                borderRadius: 10,
+                border: "1px solid var(--color-line)",
+                background: "var(--color-bg-sunk)",
+                color: "var(--color-ink)",
+                fontSize: 16,
+                fontFamily: "var(--font-mono)",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+        )}
+
+        {/* Effort level */}
+        <div>
+          <div style={fieldLabel}>Effort level — optional</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {EFFORT_OPTIONS.map((e) => {
+              const selected = effort === e.value;
+              return (
+                <button
+                  key={e.value}
+                  onClick={() => setEffort(selected ? "" : e.value)}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border: `1px solid ${selected ? "var(--color-accent)" : "var(--color-line)"}`,
+                    background: selected ? "var(--color-accent-soft)" : "var(--color-bg-raised)",
+                    color: selected ? "var(--color-accent)" : "var(--color-ink-2)",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    textAlign: "left",
+                    transition: "all 120ms",
+                  }}
+                >
+                  <div style={{ fontSize: 13, fontWeight: selected ? 600 : 500 }}>{e.label}</div>
+                  <div style={{ fontSize: 10, color: selected ? "var(--color-accent)" : "var(--color-ink-4)", marginTop: 2 }}>{e.desc}</div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
