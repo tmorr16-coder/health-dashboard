@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/auth";
 import WithingsCard from "./_components/WithingsCard";
@@ -51,8 +52,18 @@ export default async function IntegrationsPage({
   return (
     <div style={{ fontFamily: "var(--font-dm-sans)", color: "#e8ecf8" }}>
 
+      {/* Back link */}
+      <div style={{ padding: "16px 24px 0" }}>
+        <Link
+          href="/dashboard"
+          style={{ fontSize: 12, color: "#7a8299", textDecoration: "none", letterSpacing: 0.3 }}
+        >
+          ← Back to Dashboard
+        </Link>
+      </div>
+
       {/* Header */}
-      <div style={{ padding: "20px 24px 12px", borderBottom: "1px solid #1a2035" }}>
+      <div style={{ padding: "16px 24px 12px", borderBottom: "1px solid #1a2035" }}>
         <div
           style={{
             fontSize: 12,
