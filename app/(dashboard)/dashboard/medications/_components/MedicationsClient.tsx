@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { addMedication, updateMedication, removeMedication } from "../actions";
 
 export interface Med {
@@ -34,6 +34,258 @@ const SCHEDULES = [
   "Weekly · Sun",
   "As needed",
 ];
+
+const ZEPBOUND_DOSES = [2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20];
+const INJECTION_SITES = ["L Abdomen", "R Abdomen", "L Thigh", "R Thigh", "L Upper Arm", "R Upper Arm"];
+const ZEPBOUND_KEY = "zepbound-tracker";
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+interface ZepboundLog { date: string; dose: number; site: string }
+interface ZepboundData {
+  dose: number;
+  injectionDay: string;
+  siteIndex: number;
+  logs: ZepboundLog[];
+}
+
+function ZepboundCard() {
+  const [data, setData] = useState<ZepboundData | null>(null);
+  const [editingDose, setEditingDose] = useState(false);
+  const [editingDay, setEditingDay] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(ZEPBOUND_KEY);
+      if (raw) {
+        setData(JSON.parse(raw));
+      } else {
+        const initial: ZepboundData = { dose: 2.5, injectionDay: "Tuesday", siteIndex: 0, logs: [] };
+        localStorage.setItem(ZEPBOUND_KEY, JSON.stringify(initial));
+        setData(initial);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  function save(next: ZepboundData) {
+    setData(next);
+    try { localStorage.setItem(ZEPBOUND_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  }
+
+  function logDose() {
+    if (!data) return;
+    const today = new Date().toLocaleDateString("sv");
+    const alreadyToday = data.logs[data.logs.length - 1]?.date === today;
+    if (alreadyToday) return;
+    const site = INJECTION_SITES[data.siteIndex];
+    const nextSiteIndex = (data.siteIndex + 1) % INJECTION_SITES.length;
+    save({ ...data, siteIndex: nextSiteIndex, logs: [...data.logs.slice(-11), { date: today, dose: data.dose, site }] });
+  }
+
+  function nextInjectionDays(): string {
+    if (!data) return "—";
+    const todayIdx = new Date().getDay();
+    const targetIdx = DAYS.indexOf(data.injectionDay);
+    const diff = ((targetIdx - todayIdx) + 7) % 7;
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Tomorrow";
+    return `In ${diff} days`;
+  }
+
+  if (!data) return null;
+
+  const today = new Date().toLocaleDateString("sv");
+  const loggedToday = data.logs[data.logs.length - 1]?.date === today;
+  const nextSite = INJECTION_SITES[data.siteIndex];
+  const recentLogs = [...data.logs].reverse().slice(0, 4);
+
+  return (
+    <div
+      style={{
+        background: "var(--color-bg-raised)",
+        border: "1px solid var(--color-line)",
+        borderRadius: 14,
+        overflow: "hidden",
+        marginBottom: 12,
+      }}
+    >
+      {/* Header */}
+      <div style={{ padding: "14px 16px 12px", borderBottom: "1px solid var(--color-line)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div
+              style={{
+                fontSize: 10, fontWeight: 500, letterSpacing: "0.14em",
+                textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 4,
+              }}
+            >
+              GLP-1 · Zepbound
+            </div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+              <div
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: 28,
+                  fontWeight: 400,
+                  letterSpacing: "-0.02em",
+                  color: "var(--color-ink)",
+                  lineHeight: 1,
+                }}
+              >
+                {data.dose} mg
+              </div>
+              <div style={{ fontSize: 12, color: "var(--color-ink-4)" }}>
+                {data.injectionDay}s
+              </div>
+            </div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginBottom: 2 }}>Next dose</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: loggedToday ? "var(--color-moss)" : "var(--color-ink)" }}>
+              {loggedToday ? "✓ Logged" : nextInjectionDays()}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Dose escalation */}
+      {editingDose && (
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--color-line)" }}>
+          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 8 }}>
+            Current dose
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {ZEPBOUND_DOSES.map((d) => (
+              <button
+                key={d}
+                onClick={() => { save({ ...data, dose: d }); setEditingDose(false); }}
+                style={{
+                  padding: "7px 12px",
+                  borderRadius: 8,
+                  border: `1px solid ${data.dose === d ? "var(--color-accent)" : "var(--color-line)"}`,
+                  background: data.dose === d ? "var(--color-accent-soft)" : "var(--color-bg-sunk)",
+                  color: data.dose === d ? "var(--color-accent)" : "var(--color-ink-2)",
+                  fontSize: 13,
+                  fontWeight: data.dose === d ? 600 : 400,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {d} mg
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Injection day picker */}
+      {editingDay && (
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--color-line)" }}>
+          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 8 }}>
+            Injection day
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {DAYS.map((d) => (
+              <button
+                key={d}
+                onClick={() => { save({ ...data, injectionDay: d }); setEditingDay(false); }}
+                style={{
+                  padding: "7px 12px",
+                  borderRadius: 8,
+                  border: `1px solid ${data.injectionDay === d ? "var(--color-slate)" : "var(--color-line)"}`,
+                  background: data.injectionDay === d ? "var(--color-slate-soft)" : "var(--color-bg-sunk)",
+                  color: data.injectionDay === d ? "var(--color-slate)" : "var(--color-ink-2)",
+                  fontSize: 13,
+                  fontWeight: data.injectionDay === d ? 600 : 400,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {d.slice(0, 3)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Next injection site + log action */}
+      <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginBottom: 3 }}>Next injection site</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)" }}>{nextSite}</div>
+          <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 2 }}>
+            Rotating: {INJECTION_SITES.join(" → ")}
+          </div>
+        </div>
+        <button
+          onClick={logDose}
+          disabled={loggedToday}
+          style={{
+            padding: "10px 16px",
+            borderRadius: 10,
+            border: "none",
+            background: loggedToday ? "var(--color-bg-sunk)" : "var(--color-moss)",
+            color: loggedToday ? "var(--color-ink-4)" : "#fff",
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: loggedToday ? "not-allowed" : "pointer",
+            fontFamily: "inherit",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {loggedToday ? "✓ Done" : "Log Dose"}
+        </button>
+      </div>
+
+      {/* Config buttons */}
+      <div style={{ padding: "0 16px 12px", display: "flex", gap: 8 }}>
+        <button
+          onClick={() => { setEditingDose((v) => !v); setEditingDay(false); }}
+          style={{
+            padding: "6px 12px", borderRadius: 8,
+            border: "1px solid var(--color-line)",
+            background: editingDose ? "var(--color-ink)" : "var(--color-bg-sunk)",
+            color: editingDose ? "var(--color-bg)" : "var(--color-ink-3)",
+            fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+          }}
+        >
+          Change dose
+        </button>
+        <button
+          onClick={() => { setEditingDay((v) => !v); setEditingDose(false); }}
+          style={{
+            padding: "6px 12px", borderRadius: 8,
+            border: "1px solid var(--color-line)",
+            background: editingDay ? "var(--color-ink)" : "var(--color-bg-sunk)",
+            color: editingDay ? "var(--color-bg)" : "var(--color-ink-3)",
+            fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+          }}
+        >
+          Change day
+        </button>
+      </div>
+
+      {/* Recent log */}
+      {recentLogs.length > 0 && (
+        <div style={{ borderTop: "1px solid var(--color-line)", padding: "12px 16px" }}>
+          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 8 }}>
+            Recent doses
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {recentLogs.map((log, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+                  {new Date(log.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  <span style={{ marginLeft: 8, color: "var(--color-ink-4)" }}>{log.site}</span>
+                </div>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--color-ink)" }}>{log.dose} mg</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const fieldLabel: React.CSSProperties = {
   fontSize: 9,
@@ -291,6 +543,8 @@ export default function MedicationsClient({ initialMeds }: { initialMeds: Med[] 
 
   return (
     <div>
+      <ZepboundCard />
+
       <div
         style={{
           background: "var(--color-bg-raised)",

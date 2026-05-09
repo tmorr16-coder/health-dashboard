@@ -385,9 +385,9 @@ export default function WorkoutTracker({ initialExercises }: WorkoutTrackerProps
         )}
 
         {/* Set history */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ ...eyebrow, marginBottom: 8 }}>Sets</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ ...eyebrow, marginBottom: 6 }}>Sets</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
             {Array.from({ length: currentEx.target.sets }).map((_, i) => {
               const log      = currentExSets[i];
               const lastSet  = currentEx.lastSession.sets[i];
@@ -402,9 +402,9 @@ export default function WorkoutTracker({ initialExercises }: WorkoutTrackerProps
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 10,
-                    padding: "11px 13px",
-                    borderRadius: 10,
+                    gap: 8,
+                    padding: "8px 11px",
+                    borderRadius: 9,
                     background: isActive ? "var(--color-accent-soft)" : "var(--color-bg-raised)",
                     border: `1px solid ${isActive ? "var(--color-accent)" : "var(--color-line)"}`,
                     cursor: !isDone ? "pointer" : "default",
@@ -465,16 +465,16 @@ export default function WorkoutTracker({ initialExercises }: WorkoutTrackerProps
               background: "var(--color-bg-raised)",
               border: "1px solid var(--color-line)",
               borderRadius: 14,
-              padding: "16px",
-              marginBottom: 16,
+              padding: "12px 14px",
+              marginBottom: 12,
             }}
           >
-            <div style={{ ...eyebrow, color: "var(--color-accent)", marginBottom: 14 }}>
-              Log set {activeSetIdx + 1}
+            <div style={{ ...eyebrow, color: "var(--color-accent)", marginBottom: 10 }}>
+              Log set {activeSetIdx + 1} of {currentEx.target.sets}
             </div>
 
             {/* Reps + Weight steppers */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
               {[
                 {
                   label: "Reps",
@@ -499,7 +499,7 @@ export default function WorkoutTracker({ initialExercises }: WorkoutTrackerProps
                     <button
                       onClick={onMinus}
                       style={{
-                        width: 44, height: 52, borderRadius: 10,
+                        width: 40, height: 46, borderRadius: 10,
                         border: "1px solid var(--color-line)",
                         background: "var(--color-bg-sunk)",
                         color: "var(--color-ink)", fontSize: 20, cursor: "pointer",
@@ -514,7 +514,7 @@ export default function WorkoutTracker({ initialExercises }: WorkoutTrackerProps
                       type="number"
                       inputMode="decimal"
                       style={{
-                        flex: 1, height: 52,
+                        flex: 1, height: 46,
                         background: "var(--color-bg-sunk)",
                         border: "1px solid var(--color-line)",
                         borderRadius: 10,
@@ -529,7 +529,7 @@ export default function WorkoutTracker({ initialExercises }: WorkoutTrackerProps
                     <button
                       onClick={onPlus}
                       style={{
-                        width: 44, height: 52, borderRadius: 10,
+                        width: 40, height: 46, borderRadius: 10,
                         border: "1px solid var(--color-line)",
                         background: "var(--color-bg-sunk)",
                         color: "var(--color-ink)", fontSize: 20, cursor: "pointer",
@@ -544,8 +544,8 @@ export default function WorkoutTracker({ initialExercises }: WorkoutTrackerProps
             </div>
 
             {/* RPE */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                 <span style={eyebrow}>RPE</span>
                 <span style={{ fontSize: 11, color: "var(--color-ink-3)" }}>
                   {inputRpe <= 6 ? "Easy" : inputRpe === 7 ? "3 reps left" : inputRpe === 8 ? "2 reps left" : inputRpe === 9 ? "1 rep left" : "Max effort"}
@@ -577,19 +577,25 @@ export default function WorkoutTracker({ initialExercises }: WorkoutTrackerProps
               onClick={handleLogSet}
               style={{
                 width: "100%",
-                padding: "16px",
+                padding: "14px 16px",
                 borderRadius: 12,
                 border: "none",
                 background: "var(--color-ink)",
                 color: "var(--color-bg)",
                 fontFamily: "inherit",
-                fontSize: 15,
-                fontWeight: 700,
-                letterSpacing: "0.02em",
                 cursor: "pointer",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 2,
               }}
             >
-              Log Set {activeSetIdx + 1} &amp; Start Rest
+              <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.02em" }}>
+                Log Set {activeSetIdx + 1}
+              </span>
+              <span style={{ fontSize: 11, opacity: 0.6, fontWeight: 400 }}>
+                then start {currentEx.restSec}s rest
+              </span>
             </button>
           </div>
         )}

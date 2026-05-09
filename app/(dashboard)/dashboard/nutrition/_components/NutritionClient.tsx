@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { addMeal, deleteMeal, toggleFavorite, logFavoriteMeal } from "../actions";
 import type { MealType } from "../actions";
 import ChatWidget from "../../_components/ChatWidget";
@@ -228,6 +228,18 @@ export default function NutritionClient({ date, meals: initialMeals, favorites: 
   const [showFavorites, setShowFavorites] = useState(false);
 
   const totalCalories = meals.reduce((sum, m) => sum + (m.calories_est ?? 0), 0);
+  const [calorieGoal, setCalorieGoal] = useState<number | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("health-dashboard-profile");
+      if (raw) {
+        const p = JSON.parse(raw);
+        const goal = parseInt(p.calorieGoal);
+        if (goal > 0) setCalorieGoal(goal);
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   function handleAdded(meal: Meal) {
     setMeals((prev) => [...prev, meal]);
@@ -310,40 +322,68 @@ export default function NutritionClient({ date, meals: initialMeals, favorites: 
       </div>
 
       {/* Calorie summary */}
-      {totalCalories > 0 && (
+      {(totalCalories > 0 || calorieGoal) && (
         <div
           style={{
             background: "var(--color-ink)",
             borderRadius: 14,
             padding: "16px 18px",
             marginBottom: 16,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
           }}
         >
-          <div>
-            <div style={{ ...eyebrow, color: "rgba(244,241,236,0.5)" }}>Total today</div>
-            <div
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 32,
-                fontWeight: 400,
-                letterSpacing: "-0.02em",
-                color: "var(--color-bg)",
-                lineHeight: 1,
-              }}
-            >
-              {totalCalories.toLocaleString()}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <div>
+              <div style={{ ...eyebrow, color: "rgba(244,241,236,0.5)", marginBottom: 4 }}>Today&apos;s calories</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <div
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    fontSize: 32,
+                    fontWeight: 400,
+                    letterSpacing: "-0.02em",
+                    color: "var(--color-bg)",
+                    lineHeight: 1,
+                  }}
+                >
+                  {totalCalories.toLocaleString()}
+                </div>
+                {calorieGoal && (
+                  <div style={{ fontSize: 14, color: "rgba(244,241,236,0.45)", lineHeight: 1 }}>
+                    / {calorieGoal.toLocaleString()}
+                  </div>
+                )}
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(244,241,236,0.4)", marginTop: 3 }}>
+                kcal · {meals.length} item{meals.length !== 1 ? "s" : ""}
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: "rgba(244,241,236,0.5)", marginTop: 2 }}>kcal</div>
+            {calorieGoal && (
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 10, color: "rgba(244,241,236,0.45)", marginBottom: 4 }}>
+                  {Math.round((totalCalories / calorieGoal) * 100)}% of goal
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: totalCalories > calorieGoal ? "var(--color-accent)" : "var(--color-moss)" }}>
+                  {totalCalories > calorieGoal
+                    ? `+${(totalCalories - calorieGoal).toLocaleString()} over`
+                    : `${(calorieGoal - totalCalories).toLocaleString()} left`}
+                </div>
+              </div>
+            )}
           </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 22 }}>🥗</div>
-            <div style={{ fontSize: 12, color: "rgba(244,241,236,0.6)", marginTop: 4 }}>
-              {meals.length} item{meals.length !== 1 ? "s" : ""}
+          {/* Progress bar */}
+          {calorieGoal && (
+            <div style={{ height: 6, background: "rgba(244,241,236,0.15)", borderRadius: 3, overflow: "hidden" }}>
+              <div
+                style={{
+                  width: `${Math.min((totalCalories / calorieGoal) * 100, 100)}%`,
+                  height: "100%",
+                  background: totalCalories > calorieGoal ? "var(--color-accent)" : "var(--color-moss)",
+                  borderRadius: 3,
+                  transition: "width 0.5s ease",
+                }}
+              />
             </div>
-          </div>
+          )}
         </div>
       )}
 

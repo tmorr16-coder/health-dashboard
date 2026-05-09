@@ -10,6 +10,7 @@ interface UserProfile {
   dietary: string[];
   currentWeightLbs: string;
   targetWeightLbs: string;
+  calorieGoal: string;
 }
 
 const DEFAULT_PROFILE: UserProfile = {
@@ -20,6 +21,7 @@ const DEFAULT_PROFILE: UserProfile = {
   dietary: [],
   currentWeightLbs: "",
   targetWeightLbs: "",
+  calorieGoal: "",
 };
 
 const STORAGE_KEY = "health-dashboard-profile";
@@ -233,6 +235,33 @@ export default function ProfilePage() {
                   style={fieldInput}
                 />
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Nutrition goals */}
+        <div
+          style={{
+            background: "var(--color-bg-raised)",
+            border: "1px solid var(--color-line)",
+            borderRadius: 14,
+            padding: "16px",
+          }}
+        >
+          <div style={{ ...fieldLabel, marginBottom: 14 }}>Nutrition goals</div>
+          <div>
+            <div style={fieldLabel}>Daily calorie goal (kcal)</div>
+            <input
+              value={profile.calorieGoal}
+              onChange={(e) => update("calorieGoal", e.target.value)}
+              type="number"
+              min="500"
+              max="5000"
+              placeholder="e.g. 2000"
+              style={fieldInput}
+            />
+            <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 6 }}>
+              Used to show your daily progress in the Eat tab
             </div>
           </div>
         </div>

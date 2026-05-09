@@ -22,12 +22,35 @@ const MOCK_LIFT_PRS = [
 ];
 
 // ── Props from server ─────────────────────────────────────────────
+export interface FeedItem {
+  id: string;
+  date: string;
+  type: "workout" | "meal";
+  label: string;
+  detail: string | null;
+  icon: string;
+}
+
 export interface ProgressProps {
   withingsCurrent: number | null;
   withingsDelta30d: number | null;
   weeklyMiles: number | null;
   weeklyRuns: number;
   avgPaceSec: number | null;
+  streak: number;
+  monthWorkouts: number;
+  last7Steps: { day: string; steps: number }[];
+  feedItems: FeedItem[];
+}
+
+function relativeDay(dateStr: string): string {
+  const fmt = (d: Date) => d.toLocaleDateString("sv");
+  const today = fmt(new Date());
+  const yesterday = fmt(new Date(Date.now() - 86_400_000));
+  if (dateStr === today) return "Today";
+  if (dateStr === yesterday) return "Yesterday";
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -152,6 +175,10 @@ export default function ProgressClient({
   weeklyMiles,
   weeklyRuns,
   avgPaceSec,
+  streak,
+  monthWorkouts,
+  last7Steps,
+  feedItems,
 }: ProgressProps) {
   const [tab, setTab] = useState<Tab>("body");
 
@@ -209,6 +236,76 @@ export default function ProgressClient({
         How you&apos;re
         <br />trending.
       </div>
+
+      {/* Streak + monthly workouts */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+        <div
+          style={{
+            background: streak > 0 ? "var(--color-ink)" : "var(--color-bg-raised)",
+            border: `1px solid ${streak > 0 ? "transparent" : "var(--color-line)"}`,
+            borderRadius: 14,
+            padding: "16px",
+          }}
+        >
+          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: streak > 0 ? "rgba(244,241,236,0.45)" : "var(--color-ink-3)", marginBottom: 6 }}>
+            Streak 🔥
+          </div>
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 40, fontWeight: 400, lineHeight: 1, letterSpacing: "-0.02em", color: streak > 0 ? "var(--color-bg)" : "var(--color-ink-4)" }}>
+            {streak}
+          </div>
+          <div style={{ fontSize: 11, color: streak > 0 ? "rgba(244,241,236,0.5)" : "var(--color-ink-4)", marginTop: 3 }}>
+            {streak === 1 ? "day" : "days"} in a row
+          </div>
+        </div>
+        <div
+          style={{
+            background: "var(--color-bg-raised)",
+            border: "1px solid var(--color-line)",
+            borderRadius: 14,
+            padding: "16px",
+          }}
+        >
+          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>
+            This month
+          </div>
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 40, fontWeight: 400, lineHeight: 1, letterSpacing: "-0.02em", color: "var(--color-ink)" }}>
+            {monthWorkouts}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 3 }}>
+            workout{monthWorkouts !== 1 ? "s" : ""} logged
+          </div>
+        </div>
+      </div>
+
+      {/* 7-day step trend */}
+      {last7Steps.some((d) => d.steps > 0) && (
+        <div
+          style={{
+            background: "var(--color-bg-raised)",
+            border: "1px solid var(--color-line)",
+            borderRadius: 14,
+            padding: "14px 16px",
+            marginBottom: 14,
+          }}
+        >
+          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 12 }}>
+            Steps · 7-day trend
+          </div>
+          <div style={{ display: "flex", gap: 5, alignItems: "flex-end", height: 56 }}>
+            {(() => {
+              const maxS = Math.max(...last7Steps.map((d) => d.steps), 1);
+              return last7Steps.map(({ day, steps: s }) => (
+                <div key={day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, height: "100%" }}>
+                  <div style={{ flex: 1, display: "flex", alignItems: "flex-end", width: "100%" }}>
+                    <div style={{ width: "100%", height: s > 0 ? `${Math.max((s / maxS) * 100, 8)}%` : 4, background: s > 0 ? C_MOSS : "var(--color-bg-sunk)", borderRadius: "3px 3px 2px 2px" }} />
+                  </div>
+                  <span style={{ fontSize: 9, color: "var(--color-ink-4)", fontWeight: 500 }}>{day}</span>
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+      )}
 
       {/* Tab control */}
       <Seg
@@ -378,6 +475,44 @@ export default function ProgressClient({
           )}
         </div>
       )}
+
+      {/* ── Activity feed ─────────────────────────────────────── */}
+      {feedItems.length > 0 && (() => {
+        const groups: { day: string; items: FeedItem[] }[] = [];
+        for (const item of feedItems.slice(0, 30)) {
+          const day = relativeDay(item.date);
+          const last = groups[groups.length - 1];
+          if (last && last.day === day) last.items.push(item);
+          else groups.push({ day, items: [item] });
+        }
+        return (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", margin: "20px 0 10px" }}>
+              Activity feed
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {groups.map(({ day, items }) => (
+                <div key={day}>
+                  <div style={{ fontSize: 10, color: "var(--color-ink-4)", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 500, marginBottom: 6 }}>{day}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    {items.map((item) => (
+                      <div key={item.id} style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 30, height: 30, borderRadius: 7, background: item.type === "workout" ? "var(--color-accent-soft)" : "var(--color-bg-sunk)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>
+                          {item.icon}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</div>
+                          {item.detail && <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 1 }}>{item.detail}</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Body composition stats (always shown) ────────────── */}
       <div
