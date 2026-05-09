@@ -14,7 +14,7 @@ interface Props {
 function relativeTime(isoTs: string): string {
   const mins = Math.floor((Date.now() - new Date(isoTs).getTime()) / 60_000);
   if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
+  if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
@@ -95,25 +95,11 @@ export default function WithingsCard({ connected, connectedAt, lastSyncAt, succe
       </div>
 
       {/* Meta + toasts */}
-      {connected && (connectedAt || lastSyncAt || successMessage || syncMsg || syncErr) && (
+      {connected && (lastSyncAt || successMessage || syncMsg || syncErr) && (
         <div style={{ padding: "10px 16px 0" }}>
-          {(connectedAt || lastSyncAt) && (
-            <div
-              style={{
-                display: "flex",
-                gap: 16,
-                fontSize: 12,
-                color: "var(--color-ink-3)",
-                marginBottom: 10,
-                flexWrap: "wrap",
-              }}
-            >
-              {connectedAt && <span>Connected {relativeTime(connectedAt)}</span>}
-              {lastSyncAt && (
-                <span style={{ color: "var(--color-moss)" }}>
-                  Last data {relativeTime(lastSyncAt)}
-                </span>
-              )}
+          {lastSyncAt && (
+            <div style={{ fontSize: 12, color: "var(--color-moss)", marginBottom: 10 }}>
+              Last data {relativeTime(lastSyncAt)}
             </div>
           )}
           {(successMessage || syncMsg) && (

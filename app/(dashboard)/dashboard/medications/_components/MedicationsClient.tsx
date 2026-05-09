@@ -78,7 +78,7 @@ function ZepboundCard() {
     if (alreadyToday) return;
     const site = INJECTION_SITES[data.siteIndex];
     const nextSiteIndex = (data.siteIndex + 1) % INJECTION_SITES.length;
-    save({ ...data, siteIndex: nextSiteIndex, logs: [...data.logs.slice(-11), { date: today, dose: data.dose, site }] });
+    save({ ...data, siteIndex: nextSiteIndex, logs: [...data.logs, { date: today, dose: data.dose, site }] });
   }
 
   function nextInjectionDays(): string {
@@ -96,7 +96,16 @@ function ZepboundCard() {
   const today = new Date().toLocaleDateString("sv");
   const loggedToday = data.logs[data.logs.length - 1]?.date === today;
   const nextSite = INJECTION_SITES[data.siteIndex];
-  const recentLogs = [...data.logs].reverse().slice(0, 4);
+  const allLogs = [...data.logs].reverse();
+
+  // Group logs by month
+  const byMonth = new Map<string, ZepboundLog[]>();
+  for (const log of allLogs) {
+    const d = new Date(log.date + "T12:00:00");
+    const key = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    if (!byMonth.has(key)) byMonth.set(key, []);
+    byMonth.get(key)!.push(log);
+  }
 
   return (
     <div
@@ -264,20 +273,45 @@ function ZepboundCard() {
         </button>
       </div>
 
-      {/* Recent log */}
-      {recentLogs.length > 0 && (
+      {/* Dose history */}
+      {allLogs.length > 0 && (
         <div style={{ borderTop: "1px solid var(--color-line)", padding: "12px 16px" }}>
-          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 8 }}>
-            Recent doses
+          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 10 }}>
+            Dose history · {allLogs.length} injection{allLogs.length !== 1 ? "s" : ""}
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            {recentLogs.map((log, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
-                  {new Date(log.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                  <span style={{ marginLeft: 8, color: "var(--color-ink-4)" }}>{log.site}</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {Array.from(byMonth.entries()).map(([month, logs]) => (
+              <div key={month}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: "var(--color-ink-4)", marginBottom: 6, letterSpacing: "0.06em" }}>
+                  {month}
                 </div>
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--color-ink)" }}>{log.dose} mg</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {logs.map((log, i) => {
+                    const d = new Date(log.date + "T12:00:00");
+                    const dayLabel = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+                    return (
+                      <div
+                        key={i}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "7px 10px",
+                          borderRadius: 8,
+                          background: i === 0 && month === Array.from(byMonth.keys())[0] ? "var(--color-moss-soft)" : "var(--color-bg-sunk)",
+                        }}
+                      >
+                        <div>
+                          <span style={{ fontSize: 12, color: "var(--color-ink-2)", fontWeight: 500 }}>{dayLabel}</span>
+                          <span style={{ marginLeft: 8, fontSize: 11, color: "var(--color-ink-4)" }}>{log.site}</span>
+                        </div>
+                        <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600, color: "var(--color-ink)" }}>
+                          {log.dose} mg
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ))}
           </div>

@@ -108,28 +108,28 @@ export default async function DashboardPage() {
       .select("created_at")
       .eq("user_id", userId).eq("source", "withings")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    // Today's activity
+    // Today's activity — apple_health source only to avoid double-counting with Oura
     db.from("apple_health_metrics")
       .select("value, source")
-      .eq("user_id", userId)
+      .eq("user_id", userId).eq("source", "apple_health")
       .in("metric_name", ["step_count", "Step Count", "Steps"])
       .gte("timestamp", todayStart.toISOString())
       .lt("timestamp", tomorrowStart.toISOString()),
     db.from("apple_health_metrics")
       .select("value")
-      .eq("user_id", userId)
+      .eq("user_id", userId).eq("source", "apple_health")
       .in("metric_name", ["active_energy", "Active Energy", "Active Energy Burned"])
       .gte("timestamp", todayStart.toISOString())
       .lt("timestamp", tomorrowStart.toISOString()),
     db.from("apple_health_metrics")
       .select("value, unit")
-      .eq("user_id", userId)
+      .eq("user_id", userId).eq("source", "apple_health")
       .in("metric_name", ["walking_running_distance", "Walking + Running Distance", "Walking Running Distance"])
       .gte("timestamp", todayStart.toISOString())
       .lt("timestamp", tomorrowStart.toISOString()),
     db.from("apple_health_metrics")
       .select("value")
-      .eq("user_id", userId)
+      .eq("user_id", userId).eq("source", "apple_health")
       .in("metric_name", ["heart_rate", "Heart Rate"])
       .order("timestamp", { ascending: false })
       .limit(1),

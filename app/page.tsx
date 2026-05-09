@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
 // ── SVG brand icons ────────────────────────────────────────────────────────────
 
@@ -15,12 +15,15 @@ function GoogleIcon() {
   );
 }
 
-function AppleIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 814 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-      <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-36.8-162.1-105.3C110.3 749.8 30 603.8 30 462c0-217.1 141.4-332 269.8-332 71.2 0 130.6 47.2 175.1 47.2 42.3 0 109.3-50.1 190.3-50.1 30.6 0 110.5 2.8 173.9 80.4zm-165.3-180.6c31.1-37.9 53.1-90.8 53.1-143.6 0-7.4-.6-14.9-1.9-21.1-50.5 1.9-110.8 33.7-147.1 75.8-28.5 32.4-55.1 85.3-55.1 139.3 0 8.3 1.3 16.6 1.9 19.2 3.2.6 8.4 1.3 13.6 1.3 45.4 0 102.5-30.4 135.5-71z"/>
-    </svg>
-  );
+
+async function signInWithGoogle() {
+  const supabase = createClient();
+  await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`,
+    },
+  });
 }
 
 export default function LandingPage() {
@@ -102,11 +105,7 @@ export default function LandingPage() {
 
         {/* Google */}
         <button
-          onClick={() => {
-            // Supabase OAuth: configure Google provider in Supabase dashboard,
-            // then replace this with: supabase.auth.signInWithOAuth({ provider: "google" })
-            window.location.href = "/dashboard";
-          }}
+          onClick={signInWithGoogle}
           style={{
             display: "flex",
             alignItems: "center",
@@ -128,67 +127,6 @@ export default function LandingPage() {
           Continue with Google
         </button>
 
-        {/* Apple */}
-        <button
-          onClick={() => {
-            // Supabase OAuth: configure Apple provider in Supabase dashboard,
-            // then replace this with: supabase.auth.signInWithOAuth({ provider: "apple" })
-            window.location.href = "/dashboard";
-          }}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-            padding: "14px 20px",
-            borderRadius: 12,
-            border: "none",
-            background: "var(--color-ink)",
-            color: "var(--color-bg)",
-            fontSize: 14,
-            fontWeight: 500,
-            cursor: "pointer",
-            fontFamily: "inherit",
-            width: "100%",
-          }}
-        >
-          <AppleIcon />
-          Continue with Apple
-        </button>
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            margin: "4px 0",
-          }}
-        >
-          <div style={{ flex: 1, height: 1, background: "var(--color-line)" }} />
-          <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>or</span>
-          <div style={{ flex: 1, height: 1, background: "var(--color-line)" }} />
-        </div>
-
-        {/* Dev bypass — personal app, skip to dashboard directly */}
-        <Link
-          href="/dashboard"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "14px 20px",
-            borderRadius: 12,
-            border: "1px solid var(--color-line)",
-            background: "transparent",
-            color: "var(--color-ink-3)",
-            fontSize: 14,
-            fontWeight: 500,
-            textDecoration: "none",
-            textAlign: "center",
-          }}
-        >
-          Open dashboard →
-        </Link>
       </div>
 
       {/* Feature chips */}

@@ -47,10 +47,10 @@ export default async function ProgressPage() {
       .eq("user_id", userId)
       .gte("date", toDateStr(thirtyDaysAgo))
       .order("date", { ascending: false }).limit(60),
-    // 7-day steps
+    // 7-day steps — apple_health only to avoid double-counting
     db.from("apple_health_metrics")
       .select("value, timestamp")
-      .eq("user_id", userId)
+      .eq("user_id", userId).eq("source", "apple_health")
       .in("metric_name", ["step_count", "Step Count", "Steps"])
       .gte("timestamp", sevenDaysAgo.toISOString()),
   ]);
