@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/auth";
 import WithingsCard from "./_components/WithingsCard";
+import OuraCard from "./_components/OuraCard";
 
 interface TokenRow {
   updated_at: string;
@@ -34,18 +35,30 @@ export default async function IntegrationsPage({
     .limit(1)
     .maybeSingle()) as { data: { created_at: string } | null };
 
-  const connected   = tokenRow !== null;
-  const connectedAt = tokenRow?.updated_at ?? null;
-  const lastSyncAt  = lastDataRow?.created_at ?? null;
+  // Most recent Oura data point
+  const { data: ouraLastRow } = (await db
+    .from("apple_health_metrics")
+    .select("created_at")
+    .eq("user_id", userId)
+    .eq("source", "oura")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()) as { data: { created_at: string } | null };
+
+  const connected         = tokenRow !== null;
+  const connectedAt       = tokenRow?.updated_at ?? null;
+  const lastSyncAt        = lastDataRow?.created_at ?? null;
+  const ouraTokenConfigured = !!process.env.OURA_ACCESS_TOKEN;
+  const ouraLastSyncAt    = ouraLastRow?.created_at ?? null;
 
   const successMessage =
     params.connected === "1" ? "Withings connected successfully!" : null;
   const errorMessages: Record<string, string> = {
-    invalid_state: "OAuth state mismatch — please try again.",
-    no_code:       "No authorization code returned by Withings.",
+    invalid_state:  "OAuth state mismatch — please try again.",
+    no_code:        "No authorization code returned by Withings.",
     token_exchange: "Withings rejected the authorization code. Check your client credentials.",
-    fetch_failed:  "Network error reaching Withings servers.",
-    db_error:      "Tokens received but failed to save. Check server logs.",
+    fetch_failed:   "Network error reaching Withings servers.",
+    db_error:       "Tokens received but failed to save. Check server logs.",
   };
   const errorMessage = params.error ? (errorMessages[params.error] ?? `Unknown error: ${params.error}`) : null;
 
@@ -84,13 +97,17 @@ export default async function IntegrationsPage({
       </div>
 
       {/* Content */}
-      <div style={{ padding: "20px 24px", maxWidth: 800 }}>
+      <div style={{ padding: "20px 24px", maxWidth: 800, display: "flex", flexDirection: "column", gap: 16 }}>
         <WithingsCard
           connected={connected}
           connectedAt={connectedAt}
           lastSyncAt={lastSyncAt}
           successMessage={successMessage}
           errorMessage={errorMessage}
+        />
+        <OuraCard
+          tokenConfigured={ouraTokenConfigured}
+          lastSyncAt={ouraLastSyncAt}
         />
       </div>
 

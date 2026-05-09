@@ -34,7 +34,7 @@ const MOCK_BODY_COMP = {
   weeklyFat:    [19.2,  18.6,  17.9,  17.3,  16.8],
 };
 
-const SCORES = [
+const SCORE_FALLBACKS = [
   { label: "Readiness", value: 82, color: "#4ecdc4" },
   { label: "Activity",  value: 74, color: "#ffe66d" },
   { label: "Recovery",  value: 88, color: "#a29bfe" },
@@ -166,6 +166,37 @@ export default async function DashboardPage() {
       .order("timestamp", { ascending: true })
       .limit(1),
   ]);
+
+  // ── Oura score queries ───────────────────────────────────────────────────────
+  const sevenDaysAgoIso = sevenDaysAgo.toISOString();
+  const [
+    { data: readinessRow },
+    { data: activityRow },
+    { data: sleepScoreRow },
+  ] = await Promise.all([
+    db.from("apple_health_metrics")
+      .select("value")
+      .eq("user_id", userId).eq("source", "oura").eq("metric_name", "readiness_score")
+      .gte("timestamp", sevenDaysAgoIso)
+      .order("timestamp", { ascending: false }).limit(1).maybeSingle(),
+    db.from("apple_health_metrics")
+      .select("value")
+      .eq("user_id", userId).eq("source", "oura").eq("metric_name", "activity_score")
+      .gte("timestamp", sevenDaysAgoIso)
+      .order("timestamp", { ascending: false }).limit(1).maybeSingle(),
+    db.from("apple_health_metrics")
+      .select("value")
+      .eq("user_id", userId).eq("source", "oura").eq("metric_name", "sleep_score")
+      .gte("timestamp", sevenDaysAgoIso)
+      .order("timestamp", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+
+  type ScoreRow = { value: number } | null;
+  const SCORES = [
+    { label: "Readiness", value: Math.round((readinessRow as ScoreRow)?.value  ?? SCORE_FALLBACKS[0].value), color: "#4ecdc4" },
+    { label: "Activity",  value: Math.round((activityRow  as ScoreRow)?.value  ?? SCORE_FALLBACKS[1].value), color: "#ffe66d" },
+    { label: "Recovery",  value: Math.round((sleepScoreRow as ScoreRow)?.value ?? SCORE_FALLBACKS[2].value), color: "#a29bfe" },
+  ];
 
   const lastSync: string | null =
     (lastSyncRows as { created_at: string }[] | null)?.[0]?.created_at ?? null;
