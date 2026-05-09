@@ -195,6 +195,32 @@ export type Database = {
         };
       };
 
+      medications: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          dose: string;
+          schedule: string;
+          active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          dose: string;
+          schedule?: string;
+          active?: boolean;
+        };
+        Update: {
+          name?: string;
+          dose?: string;
+          schedule?: string;
+          active?: boolean;
+        };
+      };
+
       withings_tokens: {
         Row: {
           user_id: string;

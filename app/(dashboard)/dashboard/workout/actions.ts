@@ -8,7 +8,14 @@ import { EXERCISE_LIBRARY } from "./exercise-library";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyClient = any;
 
-export async function createWorkoutSession(): Promise<{
+interface SessionExercise {
+  name: string;
+  muscles: string[];
+}
+
+export async function createWorkoutSession(
+  customExercises?: SessionExercise[]
+): Promise<{
   sessionId: string;
   exerciseIds: string[];
   error?: string;
@@ -16,13 +23,14 @@ export async function createWorkoutSession(): Promise<{
   const db: AnyClient = createAdminClient();
   const userId = getCurrentUserId();
 
+  const exList: SessionExercise[] = customExercises
+    ?? EXERCISE_LIBRARY.map((ex) => ({ name: ex.name, muscles: ex.muscles }));
+
+  const type = customExercises ? "Custom Workout" : "Lower Body Power";
+
   const { data: session, error: sessionErr } = await db
     .from("workout_sessions")
-    .insert({
-      user_id: userId,
-      date: new Date().toLocaleDateString("sv"),
-      type: "Lower Body Power",
-    })
+    .insert({ user_id: userId, date: new Date().toLocaleDateString("sv"), type })
     .select("id")
     .single();
 
@@ -30,7 +38,7 @@ export async function createWorkoutSession(): Promise<{
     return { sessionId: "", exerciseIds: [], error: sessionErr?.message ?? "Failed to create session" };
   }
 
-  const inserts = EXERCISE_LIBRARY.map((ex, i) => ({
+  const inserts = exList.map((ex, i) => ({
     session_id: session.id,
     user_id: userId,
     name: ex.name,
@@ -47,8 +55,7 @@ export async function createWorkoutSession(): Promise<{
     return { sessionId: session.id, exerciseIds: [], error: exErr?.message ?? "Failed to create exercises" };
   }
 
-  // Return IDs in the same order as EXERCISE_LIBRARY
-  const exerciseIds = EXERCISE_LIBRARY.map(
+  const exerciseIds = exList.map(
     (ex) => (exercises as { id: string; name: string }[]).find((e) => e.name === ex.name)?.id ?? ""
   );
 

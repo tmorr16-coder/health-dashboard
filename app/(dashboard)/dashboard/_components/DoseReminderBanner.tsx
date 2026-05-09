@@ -23,9 +23,9 @@ export default function DoseReminderBanner({
       <div
         style={{
           gridColumn: "1 / -1",
-          background: "linear-gradient(135deg, #2a1f3d 0%, #1a2035 100%)",
-          border: "1px solid #5b6ee180",
-          borderRadius: 16,
+          background: "var(--color-bg-raised)",
+          border: "1px solid var(--color-line)",
+          borderRadius: 14,
           padding: "20px 22px",
         }}
       >
@@ -41,14 +41,14 @@ export default function DoseReminderBanner({
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div
               style={{
-                width: 56,
-                height: 56,
-                borderRadius: 14,
-                background: "linear-gradient(135deg, #5b6ee1 0%, #a29bfe 100%)",
+                width: 52,
+                height: 52,
+                borderRadius: 12,
+                background: "var(--color-accent-soft)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: 28,
+                fontSize: 26,
                 flexShrink: 0,
               }}
             >
@@ -57,31 +57,34 @@ export default function DoseReminderBanner({
             <div>
               <div
                 style={{
-                  fontSize: 11,
-                  color: "#5b6ee1",
-                  letterSpacing: 2,
+                  fontSize: 10,
+                  color: "var(--color-accent)",
+                  letterSpacing: "0.14em",
                   textTransform: "uppercase",
-                  fontWeight: 700,
+                  fontWeight: 500,
+                  marginBottom: 3,
                 }}
               >
                 Next Zepbound Dose
               </div>
               <div
                 style={{
-                  fontFamily: "var(--font-syne)",
+                  fontFamily: "var(--font-display)",
                   fontSize: 22,
-                  fontWeight: 800,
-                  marginTop: 2,
+                  fontWeight: 400,
+                  letterSpacing: "-0.01em",
+                  lineHeight: 1.1,
+                  color: "var(--color-ink)",
                 }}
               >
                 {nextDoseDate}{" "}
-                <span style={{ color: "#7a8299", fontSize: 14, fontWeight: 400 }}>
+                <span style={{ color: "var(--color-ink-3)", fontSize: 14, fontFamily: "var(--font-sans)", fontWeight: 400 }}>
                   · 7:30 AM
                 </span>
               </div>
-              <div style={{ fontSize: 12, color: "#9aa5c4", marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginTop: 3 }}>
                 {defaultDoseMg} mg · Suggested site:{" "}
-                <span style={{ color: "#4ecdc4" }}>{recommendedSite}</span>
+                <span style={{ color: "var(--color-accent)", fontWeight: 500 }}>{recommendedSite}</span>
               </div>
             </div>
           </div>
@@ -93,11 +96,10 @@ export default function DoseReminderBanner({
               borderRadius: 10,
               border: "none",
               cursor: "pointer",
-              background: "linear-gradient(135deg, #5b6ee1 0%, #a29bfe 100%)",
-              color: "#fff",
-              fontFamily: "var(--font-syne)",
+              background: "var(--color-ink)",
+              color: "var(--color-bg)",
               fontSize: 13,
-              fontWeight: 700,
+              fontWeight: 600,
               whiteSpace: "nowrap",
             }}
           >

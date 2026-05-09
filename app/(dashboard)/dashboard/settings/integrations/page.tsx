@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/auth";
 import WithingsCard from "./_components/WithingsCard";
 import OuraCard from "./_components/OuraCard";
+import AppleHealthCard from "./_components/AppleHealthCard";
 
 interface TokenRow {
   updated_at: string;
@@ -18,92 +19,135 @@ export default async function IntegrationsPage({
   const userId = getCurrentUserId();
   const params = await searchParams;
 
-  // Fetch current Withings token row
-  const { data: tokenRow } = (await db
-    .from("withings_tokens")
-    .select("updated_at")
-    .eq("user_id", userId)
-    .maybeSingle()) as { data: TokenRow | null };
+  const [
+    { data: tokenRow },
+    { data: lastWithingsRow },
+    { data: ouraLastRow },
+    { data: appleLastRow },
+    { count: appleMetricsCount },
+    { count: appleWorkoutsCount },
+  ] = await Promise.all([
+    db.from("withings_tokens").select("updated_at").eq("user_id", userId).maybeSingle() as Promise<{ data: TokenRow | null }>,
+    db.from("apple_health_metrics").select("created_at").eq("user_id", userId).eq("source", "withings").order("created_at", { ascending: false }).limit(1).maybeSingle() as Promise<{ data: { created_at: string } | null }>,
+    db.from("apple_health_metrics").select("created_at").eq("user_id", userId).eq("source", "oura").order("created_at", { ascending: false }).limit(1).maybeSingle() as Promise<{ data: { created_at: string } | null }>,
+    db.from("apple_health_metrics").select("created_at").eq("user_id", userId).eq("source", "apple_health").order("created_at", { ascending: false }).limit(1).maybeSingle() as Promise<{ data: { created_at: string } | null }>,
+    db.from("apple_health_metrics").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("source", "apple_health") as Promise<{ count: number | null }>,
+    db.from("apple_health_workouts").select("id", { count: "exact", head: true }).eq("user_id", userId) as Promise<{ count: number | null }>,
+  ]);
 
-  // Most recent Withings data point (to show "last sync" time)
-  const { data: lastDataRow } = (await db
-    .from("apple_health_metrics")
-    .select("created_at")
-    .eq("user_id", userId)
-    .eq("source", "withings")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle()) as { data: { created_at: string } | null };
-
-  // Most recent Oura data point
-  const { data: ouraLastRow } = (await db
-    .from("apple_health_metrics")
-    .select("created_at")
-    .eq("user_id", userId)
-    .eq("source", "oura")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle()) as { data: { created_at: string } | null };
-
-  const connected         = tokenRow !== null;
-  const connectedAt       = tokenRow?.updated_at ?? null;
-  const lastSyncAt        = lastDataRow?.created_at ?? null;
+  const connected           = tokenRow !== null;
+  const connectedAt         = (tokenRow as TokenRow | null)?.updated_at ?? null;
+  const lastSyncAt          = (lastWithingsRow as { created_at: string } | null)?.created_at ?? null;
   const ouraTokenConfigured = !!process.env.OURA_ACCESS_TOKEN;
-  const ouraLastSyncAt    = ouraLastRow?.created_at ?? null;
+  const ouraLastSyncAt      = (ouraLastRow as { created_at: string } | null)?.created_at ?? null;
+  const appleConfigured     = !!process.env.HEALTH_AUTO_EXPORT_SECRET;
+  const appleLastSyncAt     = (appleLastRow as { created_at: string } | null)?.created_at ?? null;
+  const siteUrl             = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  const webhookUrl          = `${siteUrl}/api/webhooks/apple-health`;
 
   const successMessage =
     params.connected === "1" ? "Withings connected successfully!" : null;
   const errorMessages: Record<string, string> = {
     invalid_state:  "OAuth state mismatch — please try again.",
     no_code:        "No authorization code returned by Withings.",
-    token_exchange: "Withings rejected the authorization code. Check your client credentials.",
+    token_exchange: "Withings rejected the authorization code.",
     fetch_failed:   "Network error reaching Withings servers.",
     db_error:       "Tokens received but failed to save. Check server logs.",
   };
-  const errorMessage = params.error ? (errorMessages[params.error] ?? `Unknown error: ${params.error}`) : null;
+  const errorMessage = params.error
+    ? (errorMessages[params.error] ?? `Unknown error: ${params.error}`)
+    : null;
 
   return (
-    <div style={{ fontFamily: "var(--font-dm-sans)", color: "#e8ecf8" }}>
+    <div style={{ padding: "20px 20px 0" }}>
 
-      {/* Back link */}
-      <div style={{ padding: "16px 24px 0" }}>
-        <Link
-          href="/dashboard"
-          style={{ fontSize: 12, color: "#7a8299", textDecoration: "none", letterSpacing: 0.3 }}
-        >
-          ← Back to Dashboard
-        </Link>
+      {/* Back */}
+      <Link
+        href="/dashboard/medications"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          fontSize: 13,
+          color: "var(--color-ink-3)",
+          textDecoration: "none",
+          marginBottom: 20,
+        }}
+      >
+        ← Health
+      </Link>
+
+      {/* Eyebrow */}
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 500,
+          letterSpacing: "0.14em",
+          textTransform: "uppercase",
+          color: "var(--color-ink-3)",
+          marginBottom: 6,
+        }}
+      >
+        Settings
       </div>
 
-      {/* Header */}
-      <div style={{ padding: "16px 24px 12px", borderBottom: "1px solid #1a2035" }}>
+      {/* Display title */}
+      <div
+        style={{
+          fontFamily: "var(--font-display)",
+          fontSize: 36,
+          fontWeight: 400,
+          letterSpacing: "-0.02em",
+          lineHeight: 1.1,
+          color: "var(--color-ink)",
+          marginBottom: 6,
+        }}
+      >
+        Data
+        <br />
+        integrations.
+      </div>
+      <div
+        style={{
+          fontSize: 13,
+          color: "var(--color-ink-3)",
+          marginBottom: 24,
+        }}
+      >
+        Connect devices and services to sync health data automatically.
+      </div>
+
+      {/* Error banner */}
+      {errorMessage && (
         <div
           style={{
-            fontSize: 12,
-            color: "#4a5568",
-            letterSpacing: 2,
-            textTransform: "uppercase",
-            marginBottom: 4,
+            background: "var(--color-accent-soft)",
+            border: "1px solid var(--color-accent)",
+            borderRadius: 10,
+            padding: "12px 14px",
+            fontSize: 13,
+            color: "var(--color-accent)",
+            marginBottom: 16,
           }}
         >
-          Settings
+          {errorMessage}
         </div>
-        <div style={{ fontFamily: "var(--font-syne)", fontSize: 26, fontWeight: 800 }}>
-          Integrations
-        </div>
-        <div style={{ fontSize: 13, color: "#7a8299", marginTop: 3 }}>
-          Connect health devices and services to sync data automatically.
-        </div>
-      </div>
+      )}
 
-      {/* Content */}
-      <div style={{ padding: "20px 24px", maxWidth: 800, display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Cards */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <AppleHealthCard
+          configured={appleConfigured}
+          lastSyncAt={appleLastSyncAt}
+          metricsCount={appleMetricsCount ?? 0}
+          workoutsCount={appleWorkoutsCount ?? 0}
+          webhookUrl={webhookUrl}
+        />
         <WithingsCard
           connected={connected}
           connectedAt={connectedAt}
           lastSyncAt={lastSyncAt}
           successMessage={successMessage}
-          errorMessage={errorMessage}
         />
         <OuraCard
           tokenConfigured={ouraTokenConfigured}

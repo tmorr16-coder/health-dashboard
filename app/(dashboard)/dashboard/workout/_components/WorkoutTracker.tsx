@@ -6,122 +6,105 @@ import { EXERCISE_LIBRARY, suggestNext, type SetLog } from "../exercise-library"
 import { createWorkoutSession, saveSet, finishSession } from "../actions";
 import PostWorkoutSummary from "./PostWorkoutSummary";
 
-// ── shared style tokens ────────────────────────────────────────────────────────
-const syne = "var(--font-syne)";
-const mono = "var(--font-jetbrains-mono)";
-const dm   = "var(--font-dm-sans)";
+// ── style tokens ──────────────────────────────────────────────────────────────
 
-const cardBase: React.CSSProperties = {
-  background: "linear-gradient(135deg, #161c2d 0%, #1a2035 100%)",
-  border: "1px solid #2a3350",
-  borderRadius: 16,
-  padding: "20px 22px",
-};
-
-const stepBtn: React.CSSProperties = {
-  width: 36, height: 44, borderRadius: 8,
-  border: "1px solid #2a3350", background: "transparent",
-  color: "#a29bfe", fontSize: 18, fontWeight: 700, cursor: "pointer",
-};
-
-const numInput: React.CSSProperties = {
-  flex: 1, height: 44, background: "#161c2d",
-  border: "1px solid #2a3350", borderRadius: 8,
-  color: "#fff", fontFamily: mono, fontSize: 18,
-  fontWeight: 700, textAlign: "center", outline: "none",
-  colorScheme: "dark",
+const eyebrow: React.CSSProperties = {
+  fontSize: 9, fontWeight: 500, letterSpacing: "0.14em",
+  textTransform: "uppercase", color: "var(--color-ink-4)",
 };
 
 function formatTime(sec: number) {
   return `${Math.floor(sec / 60)}:${(sec % 60).toString().padStart(2, "0")}`;
 }
 
-function CardTitle({ children, accent }: { children: React.ReactNode; accent: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-      <div style={{ width: 3, height: 16, background: accent, borderRadius: 2 }} />
-      <span style={{ fontFamily: syne, fontSize: 12, fontWeight: 700, color: "#c0c8e0", letterSpacing: 1.2, textTransform: "uppercase" }}>
-        {children}
-      </span>
-    </div>
-  );
-}
-
 // ── component ─────────────────────────────────────────────────────────────────
 
 interface Session { id: string; exerciseIds: string[] }
 
-export default function WorkoutTracker() {
+interface WorkoutTrackerProps {
+  initialExercises?: typeof EXERCISE_LIBRARY;
+}
+
+export default function WorkoutTracker({ initialExercises }: WorkoutTrackerProps = {}) {
+  const exercises = initialExercises ?? EXERCISE_LIBRARY;
   const router = useRouter();
   const [, startTransition] = useTransition();
   const createdRef = useRef(false);
+  const tabsRef = useRef<HTMLDivElement>(null);
 
-  // Session metadata
-  const [session, setSession]       = useState<Session | null>(null);
-  const [creating, setCreating]     = useState(true);
+  const [session, setSession]         = useState<Session | null>(null);
+  const [creating, setCreating]       = useState(true);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  // Workout state
   const [currentExIdx, setCurrentExIdx] = useState(0);
   const [setLogs, setSetLogs] = useState<(SetLog | null)[][]>(
-    EXERCISE_LIBRARY.map((ex) => Array<SetLog | null>(ex.target.sets).fill(null))
+    exercises.map((ex) => Array<SetLog | null>(ex.target.sets).fill(null))
   );
   const [activeSetIdx, setActiveSetIdx] = useState(0);
-  const [inputReps,   setInputReps]   = useState("");
-  const [inputWeight, setInputWeight] = useState("");
-  const [inputRpe,    setInputRpe]    = useState(7);
+  const [inputReps,    setInputReps]    = useState("");
+  const [inputWeight,  setInputWeight]  = useState("");
+  const [inputRpe,     setInputRpe]     = useState(7);
 
-  // Rest timer
   const [restRemaining, setRestRemaining] = useState(0);
   const [restTotal,     setRestTotal]     = useState(0);
   const restRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Session clock
-  const [sessionStart]    = useState(() => Date.now());
-  const [sessionElapsed,  setSessionElapsed]  = useState(0);
-  const [showSummary,     setShowSummary]     = useState(false);
-  const [finalElapsed,    setFinalElapsed]    = useState(0);
+  const [sessionStart]   = useState(() => Date.now());
+  const [sessionElapsed, setSessionElapsed] = useState(0);
+  const [showSummary,    setShowSummary]    = useState(false);
+  const [finalElapsed,   setFinalElapsed]   = useState(0);
 
-  // ── effects ──────────────────────────────────────────────────────────────
+  // Collapsible sections
+  const [showCues,     setShowCues]     = useState(false);
+  const [showPrevious, setShowPrevious] = useState(false);
 
-  // Create session once on mount (ref guards React 19 Strict-Mode double-fire)
+  // ── effects ───────────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (createdRef.current) return;
     createdRef.current = true;
-    createWorkoutSession().then((result) => {
+    createWorkoutSession(
+      initialExercises ? exercises.map((ex) => ({ name: ex.name, muscles: ex.muscles })) : undefined
+    ).then((result) => {
       if (result.error) setCreateError(result.error);
       else setSession({ id: result.sessionId, exerciseIds: result.exerciseIds });
       setCreating(false);
     });
   }, []);
 
-  // Session elapsed clock
   useEffect(() => {
     const id = setInterval(() => setSessionElapsed(Math.floor((Date.now() - sessionStart) / 1000)), 1000);
     return () => clearInterval(id);
   }, [sessionStart]);
 
-  // Rest timer countdown
   useEffect(() => {
     if (restRemaining <= 0) return;
     restRef.current = setTimeout(() => setRestRemaining((r) => r - 1), 1000);
     return () => { if (restRef.current) clearTimeout(restRef.current); };
   }, [restRemaining]);
 
-  // Pre-fill inputs when exercise or set changes
-  const currentEx = EXERCISE_LIBRARY[currentExIdx];
+  const currentEx = exercises[currentExIdx];
   const suggested = suggestNext(currentEx.lastSession, currentEx.target);
 
   useEffect(() => {
     setInputWeight(suggested.weight.toString());
     setInputReps(suggested.reps.toString());
     setInputRpe(7);
+    setShowCues(false);
+    setShowPrevious(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentExIdx, activeSetIdx]);
 
-  // ── derived values ────────────────────────────────────────────────────────
+  // Scroll active exercise tab into view
+  useEffect(() => {
+    if (!tabsRef.current) return;
+    const tab = tabsRef.current.children[currentExIdx] as HTMLElement | undefined;
+    tab?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, [currentExIdx]);
 
-  const totalSets     = EXERCISE_LIBRARY.reduce((s, ex) => s + ex.target.sets, 0);
+  // ── derived ───────────────────────────────────────────────────────────────
+
+  const totalSets     = exercises.reduce((s, ex) => s + ex.target.sets, 0);
   const completedSets = setLogs.flat().filter(Boolean).length;
   const progressPct   = (completedSets / totalSets) * 100;
   const totalVolume   = setLogs.flat().filter(Boolean).reduce((s, log) => s + log!.reps * log!.weight, 0);
@@ -130,30 +113,25 @@ export default function WorkoutTracker() {
   // ── handlers ─────────────────────────────────────────────────────────────
 
   const handleLogSet = () => {
-    const reps   = parseInt(inputReps)   || 0;
+    const reps   = parseInt(inputReps)    || 0;
     const weight = parseFloat(inputWeight) || 0;
     if (reps === 0 || weight === 0) return;
 
     const setNumber = activeSetIdx + 1;
-
-    // Optimistic UI update
     const newLogs = setLogs.map((row) => [...row]);
     newLogs[currentExIdx][activeSetIdx] = { reps, weight, rpe: inputRpe };
     setSetLogs(newLogs);
 
-    // Start rest timer
     setRestRemaining(currentEx.restSec);
     setRestTotal(currentEx.restSec);
 
-    // Auto-advance to next set / exercise
     if (activeSetIdx < currentEx.target.sets - 1) {
       setActiveSetIdx(activeSetIdx + 1);
-    } else if (currentExIdx < EXERCISE_LIBRARY.length - 1) {
+    } else if (currentExIdx < exercises.length - 1) {
       setCurrentExIdx(currentExIdx + 1);
       setActiveSetIdx(0);
     }
 
-    // Persist in background
     if (session?.exerciseIds[currentExIdx]) {
       startTransition(async () => {
         await saveSet({ exerciseId: session.exerciseIds[currentExIdx], setNumber, reps, weight, rpe: inputRpe });
@@ -173,12 +151,18 @@ export default function WorkoutTracker() {
     });
   };
 
+  const jumpToExercise = (i: number) => {
+    setCurrentExIdx(i);
+    const next = setLogs[i].findIndex((s) => s === null);
+    setActiveSetIdx(next === -1 ? exercises[i].target.sets - 1 : next);
+  };
+
   // ── early returns ─────────────────────────────────────────────────────────
 
   if (showSummary) {
     return (
       <PostWorkoutSummary
-        exercises={EXERCISE_LIBRARY}
+        exercises={exercises}
         setLogs={setLogs}
         sessionElapsed={finalElapsed}
         onDone={handleSaveAndReturn}
@@ -188,403 +172,649 @@ export default function WorkoutTracker() {
 
   if (creating) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", color: "#7a8299", fontFamily: dm, gap: 12 }}>
-        <span style={{ fontSize: 24 }}>⏳</span> Starting session…
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "80vh", color: "var(--color-ink-3)", gap: 12 }}>
+        Starting session…
       </div>
     );
   }
 
   if (createError) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100vh", gap: 16, fontFamily: dm }}>
-        <div style={{ color: "#ff6b6b" }}>Failed to start session: {createError}</div>
-        <button onClick={() => router.push("/dashboard")} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #2a3350", background: "transparent", color: "#9aa5c4", cursor: "pointer" }}>
-          ← Back to Dashboard
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "80vh", gap: 16, padding: "0 24px" }}>
+        <div style={{ color: "var(--color-accent)", textAlign: "center" }}>Failed to start session: {createError}</div>
+        <button
+          onClick={() => router.push("/dashboard")}
+          style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid var(--color-line)", background: "var(--color-bg-raised)", color: "var(--color-ink-2)", cursor: "pointer", fontFamily: "inherit" }}
+        >
+          ← Back
         </button>
       </div>
     );
   }
 
+  const currentExSets = setLogs[currentExIdx];
+  const activeSetDone = currentExSets[activeSetIdx] !== null;
+
   // ── render ────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ fontFamily: dm, color: "#e8ecf8" }}>
+    <div style={{ fontFamily: "var(--font-sans)", color: "var(--color-ink)", maxWidth: 540, margin: "0 auto" }}>
 
-      {/* ── Session header ─────────────────────────────────────────────────── */}
-      <div style={{ padding: "20px 24px 0", borderBottom: "1px solid #1a2035" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, paddingBottom: 14 }}>
-          <div>
-            <div style={{ fontSize: 12, color: "#4a5568", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>
-              Active Session
+      {/* ── Sticky header ─────────────────────────────────────────────────── */}
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          background: "var(--color-bg)",
+          borderBottom: "1px solid var(--color-line)",
+          zIndex: 40,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px" }}>
+          {/* Session label + volume */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", lineHeight: 1 }}>
+              Lower Body Power
             </div>
-            <div style={{ fontFamily: syne, fontSize: 24, fontWeight: 800 }}>🏋️ Lower Body Power</div>
-          </div>
-          <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontFamily: mono, fontSize: 22, fontWeight: 700, color: "#4ecdc4" }}>
-                {formatTime(sessionElapsed)}
+            {totalVolume > 0 && (
+              <div style={{ fontSize: 11, color: "var(--color-moss)", marginTop: 2 }}>
+                {totalVolume.toLocaleString()} lbs
               </div>
-              <div style={{ fontSize: 10, color: "#7a8299" }}>SESSION</div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontFamily: syne, fontSize: 22, fontWeight: 700, color: "#a29bfe" }}>
-                {completedSets}/{totalSets}
-              </div>
-              <div style={{ fontSize: 10, color: "#7a8299" }}>SETS</div>
-            </div>
-            {completedSets > 0 && (
-              <button
-                onClick={handleFinish}
-                style={{
-                  padding: "10px 16px", borderRadius: 10,
-                  border: allSetsDone ? "none" : "1px solid #2a3350",
-                  background: allSetsDone
-                    ? "linear-gradient(135deg, #4ecdc4 0%, #a29bfe 100%)"
-                    : "#161c2d",
-                  color: allSetsDone ? "#0d1117" : "#9aa5c4",
-                  fontFamily: syne, fontSize: 12, fontWeight: 700, cursor: "pointer", letterSpacing: 0.5,
-                  boxShadow: allSetsDone ? "0 4px 16px rgba(78,205,196,0.3)" : "none",
-                }}
-              >
-                {allSetsDone ? "✓ Finish Workout" : "End Early"}
-              </button>
             )}
           </div>
+
+          {/* Timer */}
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700, color: "var(--color-moss)", flexShrink: 0 }}>
+            {formatTime(sessionElapsed)}
+          </div>
+
+          {/* Sets progress */}
+          <div
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 13,
+              color: "var(--color-ink-3)",
+              flexShrink: 0,
+              background: "var(--color-bg-sunk)",
+              padding: "4px 8px",
+              borderRadius: 6,
+            }}
+          >
+            {completedSets}/{totalSets}
+          </div>
+
+          {/* Finish button */}
+          {completedSets > 0 && (
+            <button
+              onClick={handleFinish}
+              style={{
+                padding: "7px 12px",
+                borderRadius: 8,
+                border: allSetsDone ? "none" : "1px solid var(--color-line)",
+                background: allSetsDone ? "var(--color-moss)" : "var(--color-bg-raised)",
+                color: allSetsDone ? "#fff" : "var(--color-ink-3)",
+                fontFamily: "inherit",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                flexShrink: 0,
+              }}
+            >
+              {allSetsDone ? "✓ Done" : "Finish"}
+            </button>
+          )}
         </div>
+
         {/* Progress bar */}
-        <div style={{ height: 4, background: "#1e2433", borderRadius: 2, overflow: "hidden" }}>
-          <div style={{
-            width: `${progressPct}%`, height: "100%",
-            background: "linear-gradient(90deg, #a29bfe 0%, #4ecdc4 100%)",
-            transition: "width 0.5s ease",
-          }} />
+        <div style={{ height: 3, background: "var(--color-bg-sunk)", overflow: "hidden" }}>
+          <div
+            style={{
+              width: `${progressPct}%`,
+              height: "100%",
+              background: "var(--color-moss)",
+              transition: "width 0.5s ease",
+            }}
+          />
         </div>
       </div>
 
-      {/* ── 3-column grid ──────────────────────────────────────────────────── */}
-      <div style={{ padding: "20px 24px", maxWidth: 1300, display: "grid", gridTemplateColumns: "280px 1fr 260px", gap: 16 }}>
+      {/* ── Exercise tabs ─────────────────────────────────────────────────── */}
+      <div
+        ref={tabsRef}
+        style={{
+          display: "flex",
+          gap: 8,
+          padding: "12px 16px",
+          overflowX: "auto",
+          scrollbarWidth: "none",
+          WebkitOverflowScrolling: "touch",
+          borderBottom: "1px solid var(--color-line)",
+        }}
+      >
+        {exercises.map((ex, i) => {
+          const done    = setLogs[i].filter(Boolean).length;
+          const isDone  = done === ex.target.sets;
+          const isActive = i === currentExIdx;
+          return (
+            <button
+              key={i}
+              onClick={() => jumpToExercise(i)}
+              style={{
+                flexShrink: 0,
+                padding: "7px 12px",
+                borderRadius: 20,
+                border: `1px solid ${isActive ? "var(--color-accent)" : isDone ? "var(--color-moss)" : "var(--color-line)"}`,
+                background: isActive ? "var(--color-accent-soft)" : isDone ? "var(--color-bg-sunk)" : "var(--color-bg-raised)",
+                color: isActive ? "var(--color-accent)" : isDone ? "var(--color-moss)" : "var(--color-ink-3)",
+                fontSize: 12,
+                fontWeight: isActive ? 600 : 400,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {isDone ? "✓ " : ""}{ex.name.split(" ").slice(0, 2).join(" ")}
+              {!isDone && <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.7 }}>{done}/{ex.target.sets}</span>}
+            </button>
+          );
+        })}
+      </div>
 
-        {/* ── LEFT: Exercise list ──────────────────────────────────────────── */}
-        <div style={{ ...cardBase, alignSelf: "start" }}>
-          <CardTitle accent="#a29bfe">Exercises</CardTitle>
-          <div style={{ display: "grid", gap: 8 }}>
-            {EXERCISE_LIBRARY.map((ex, i) => {
-              const doneSets = setLogs[i].filter(Boolean).length;
-              const isActive = i === currentExIdx;
-              const isDone   = doneSets === ex.target.sets;
+      {/* ── Main content ──────────────────────────────────────────────────── */}
+      <div style={{ padding: "16px 16px 100px" }}>
+
+        {/* Exercise heading */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ ...eyebrow, marginBottom: 4 }}>
+            Exercise {currentExIdx + 1} of {exercises.length}
+          </div>
+          <div
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: 26,
+              fontWeight: 400,
+              letterSpacing: "-0.01em",
+              color: "var(--color-ink)",
+              lineHeight: 1.1,
+              marginBottom: 4,
+            }}
+          >
+            {currentEx.name}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+            {currentEx.target.sets} × {currentEx.target.reps} @ {currentEx.target.weight} lbs
+            <span style={{ marginLeft: 8, color: "var(--color-ink-4)" }}>Rest {currentEx.restSec}s</span>
+          </div>
+        </div>
+
+        {/* Smart coach hint */}
+        {suggested.hint && (
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              padding: "10px 12px",
+              background: "var(--color-bg-raised)",
+              border: "1px solid var(--color-line)",
+              borderRadius: 10,
+              marginBottom: 14,
+            }}
+          >
+            <div
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 7,
+                background: "var(--color-accent-soft)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                fontSize: 14,
+              }}
+            >
+              💡
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ ...eyebrow, marginBottom: 2 }}>Coach</div>
+              <div style={{ fontSize: 13, color: "var(--color-ink-2)", lineHeight: 1.4 }}>
+                {suggested.hint}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Set history */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ ...eyebrow, marginBottom: 8 }}>Sets</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {Array.from({ length: currentEx.target.sets }).map((_, i) => {
+              const log      = currentExSets[i];
+              const lastSet  = currentEx.lastSession.sets[i];
+              const isActive = i === activeSetIdx && !log;
+              const isDone   = !!log;
+              const isPR     = isDone && lastSet && log!.weight * log!.reps > lastSet.weight * lastSet.reps;
+
               return (
                 <div
                   key={i}
-                  onClick={() => {
-                    setCurrentExIdx(i);
-                    const next = setLogs[i].findIndex((s) => s === null);
-                    setActiveSetIdx(next === -1 ? ex.target.sets - 1 : next);
-                  }}
+                  onClick={() => !isDone && setActiveSetIdx(i)}
                   style={{
-                    background: isActive ? "rgba(162,155,254,0.1)" : "#0d1117",
-                    border: `1px solid ${isActive ? "#a29bfe" : "#1e2640"}`,
-                    borderRadius: 10, padding: 12, cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "11px 13px",
+                    borderRadius: 10,
+                    background: isActive ? "var(--color-accent-soft)" : "var(--color-bg-raised)",
+                    border: `1px solid ${isActive ? "var(--color-accent)" : "var(--color-line)"}`,
+                    cursor: !isDone ? "pointer" : "default",
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontFamily: syne, fontSize: 13, fontWeight: 700, color: isActive ? "#a29bfe" : "#c0c8e0" }}>
-                      {ex.name}
+                  {/* Set indicator */}
+                  <div
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: 7,
+                      background: isDone ? "var(--color-moss)" : isActive ? "var(--color-accent-soft)" : "var(--color-bg-sunk)",
+                      border: isActive && !isDone ? "1.5px solid var(--color-accent)" : "none",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: isDone ? "#fff" : isActive ? "var(--color-accent)" : "var(--color-ink-4)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {isDone ? "✓" : i + 1}
+                  </div>
+
+                  {/* Log or placeholder */}
+                  {isDone ? (
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: "var(--color-ink)" }}>
+                        {log!.reps} × {log!.weight}lb
+                      </span>
+                      <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>@ {log!.rpe}</span>
+                      {isPR && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--color-moss)", marginLeft: 2 }}>↑ PR</span>
+                      )}
                     </div>
-                    {isDone && <span style={{ color: "#4ecdc4" }}>✓</span>}
-                  </div>
-                  <div style={{ fontSize: 11, color: "#7a8299", display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-                    <span>{ex.target.sets}×{ex.target.reps} @ {ex.target.weight}lb</span>
-                    <span style={{ color: isDone ? "#4ecdc4" : "#7a8299" }}>{doneSets}/{ex.target.sets}</span>
-                  </div>
-                  <div style={{ marginTop: 6, display: "flex", gap: 3 }}>
-                    {Array.from({ length: ex.target.sets }).map((_, si) => (
-                      <div key={si} style={{ flex: 1, height: 4, borderRadius: 2, background: setLogs[i][si] ? "#4ecdc4" : "#1e2433" }} />
-                    ))}
-                  </div>
+                  ) : (
+                    <div style={{ flex: 1 }}>
+                      {isActive ? (
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-accent)" }}>Logging now</span>
+                      ) : (
+                        <span style={{ fontSize: 13, color: "var(--color-ink-4)" }}>
+                          {lastSet ? `Last: ${lastSet.reps} × ${lastSet.weight}lb` : "—"}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
-          {/* Live volume */}
-          <div style={{ marginTop: 16, padding: 12, background: "#0d1117", borderRadius: 10, border: "1px solid #1e2640" }}>
-            <div style={{ fontSize: 10, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
-              Live Volume
-            </div>
-            <div style={{ fontFamily: syne, fontSize: 22, fontWeight: 800, color: "#4ecdc4" }}>
-              {totalVolume.toLocaleString()} <span style={{ fontSize: 12, color: "#7a8299" }}>lbs</span>
-            </div>
-          </div>
         </div>
 
-        {/* ── MIDDLE: Active set logger ────────────────────────────────────── */}
-        <div style={cardBase}>
-          {/* Exercise title */}
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, color: "#a29bfe", letterSpacing: 2, textTransform: "uppercase", fontWeight: 700 }}>
-              Exercise {currentExIdx + 1} of {EXERCISE_LIBRARY.length}
+        {/* Active set input */}
+        {!activeSetDone && (
+          <div
+            style={{
+              background: "var(--color-bg-raised)",
+              border: "1px solid var(--color-line)",
+              borderRadius: 14,
+              padding: "16px",
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ ...eyebrow, color: "var(--color-accent)", marginBottom: 14 }}>
+              Log set {activeSetIdx + 1}
             </div>
-            <div style={{ fontFamily: syne, fontSize: 28, fontWeight: 800, marginTop: 2 }}>
-              {currentEx.name}
-            </div>
-            <div style={{ fontSize: 12, color: "#7a8299", marginTop: 4 }}>
-              Target: <span style={{ color: "#c0c8e0" }}>
-                {currentEx.target.sets} × {currentEx.target.reps} @ {currentEx.target.weight} lbs
-              </span>{" "}· Rest {currentEx.restSec}s
-            </div>
-          </div>
 
-          {/* Smart Coach hint */}
-          {suggested.hint && (
-            <div style={{
-              padding: 12,
-              background: "linear-gradient(135deg, rgba(78,205,196,0.1), rgba(162,155,254,0.1))",
-              border: "1px solid #4ecdc450", borderRadius: 10,
-              marginBottom: 16, display: "flex", alignItems: "center", gap: 10,
-            }}>
-              <span style={{ fontSize: 22 }}>🤖</span>
-              <div>
-                <div style={{ fontSize: 11, color: "#4ecdc4", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 2 }}>
-                  Smart Coach
-                </div>
-                <div style={{ fontSize: 13, color: "#c0c8e0" }}>{suggested.hint}</div>
-              </div>
-            </div>
-          )}
-
-          {/* Sets history table */}
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
-              Sets
-            </div>
-            <div style={{ display: "grid", gap: 6 }}>
-              {Array.from({ length: currentEx.target.sets }).map((_, i) => {
-                const log     = setLogs[currentExIdx][i];
-                const lastSet = currentEx.lastSession.sets[i];
-                const isActive = i === activeSetIdx && !log;
-                const isDone   = !!log;
-                return (
-                  <div
-                    key={i}
-                    onClick={() => !isDone && setActiveSetIdx(i)}
-                    style={{
-                      display: "grid", gridTemplateColumns: "40px 1fr 1fr 1fr 56px",
-                      gap: 8, alignItems: "center", padding: "10px 12px",
-                      background: isActive ? "rgba(162,155,254,0.1)" : isDone ? "rgba(78,205,196,0.05)" : "#0d1117",
-                      border: `1px solid ${isActive ? "#a29bfe" : isDone ? "#4ecdc430" : "#1e2640"}`,
-                      borderRadius: 10, cursor: !isDone ? "pointer" : "default",
-                    }}
-                  >
-                    <div style={{ fontFamily: syne, fontWeight: 700, color: isActive ? "#a29bfe" : isDone ? "#4ecdc4" : "#7a8299" }}>
-                      {isDone ? "✓" : `#${i + 1}`}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 10, color: "#7a8299" }}>Reps</div>
-                      <div style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: isDone ? "#4ecdc4" : "#c0c8e0" }}>
-                        {log ? log.reps : "—"}{" "}
-                        <span style={{ fontSize: 9, color: "#4a5568" }}>was {lastSet?.reps}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 10, color: "#7a8299" }}>Weight</div>
-                      <div style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: isDone ? "#4ecdc4" : "#c0c8e0" }}>
-                        {log ? `${log.weight}lb` : "—"}{" "}
-                        <span style={{ fontSize: 9, color: "#4a5568" }}>was {lastSet?.weight}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 10, color: "#7a8299" }}>RPE</div>
-                      <div style={{ fontFamily: mono, fontSize: 14, fontWeight: 700, color: isDone ? (log!.rpe >= 9 ? "#fd9644" : "#4ecdc4") : "#c0c8e0" }}>
-                        {log ? log.rpe : "—"}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      {isDone && lastSet && log!.weight * log!.reps > lastSet.weight * lastSet.reps && (
-                        <span style={{ fontSize: 10, color: "#4ecdc4", fontWeight: 700 }}>↑ PR</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Active set input form — only shown when the current set isn't logged yet */}
-          {setLogs[currentExIdx][activeSetIdx] === null && (
-            <div style={{ padding: 18, background: "#0d1117", border: "2px solid #a29bfe50", borderRadius: 14 }}>
-              <div style={{ fontSize: 11, color: "#a29bfe", letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 700, marginBottom: 14 }}>
-                ▸ Logging Set {activeSetIdx + 1}
-              </div>
-
-              {/* Reps + Weight */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-                <div>
-                  <div style={{ fontSize: 10, color: "#7a8299", marginBottom: 6, letterSpacing: 1, textTransform: "uppercase" }}>Reps</div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={() => setInputReps((r) => Math.max(0, parseInt(r || "0") - 1).toString())} style={stepBtn}>−</button>
-                    <input value={inputReps} onChange={(e) => setInputReps(e.target.value)} type="number" style={numInput} />
-                    <button onClick={() => setInputReps((r) => (parseInt(r || "0") + 1).toString())} style={stepBtn}>+</button>
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: "#7a8299", marginBottom: 6, letterSpacing: 1, textTransform: "uppercase" }}>Weight (lbs)</div>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={() => setInputWeight((w) => Math.max(0, parseFloat(w || "0") - 5).toString())} style={stepBtn}>−</button>
-                    <input value={inputWeight} onChange={(e) => setInputWeight(e.target.value)} type="number" style={numInput} />
-                    <button onClick={() => setInputWeight((w) => (parseFloat(w || "0") + 5).toString())} style={stepBtn}>+</button>
-                  </div>
-                </div>
-              </div>
-
-              {/* RPE */}
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ fontSize: 10, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase" }}>RPE (Effort)</span>
-                  <span style={{ fontSize: 11, color: "#9aa5c4" }}>
-                    {inputRpe <= 6 ? "Easy" : inputRpe === 7 ? "3 reps left" : inputRpe === 8 ? "2 reps left" : inputRpe === 9 ? "1 rep left" : "Max effort"}
-                  </span>
-                </div>
-                <div style={{ display: "flex", gap: 4 }}>
-                  {[6, 7, 8, 9, 10].map((n) => (
+            {/* Reps + Weight steppers */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+              {[
+                {
+                  label: "Reps",
+                  value: inputReps,
+                  onChange: setInputReps,
+                  step: 1,
+                  onMinus: () => setInputReps((r) => String(Math.max(0, parseInt(r || "0") - 1))),
+                  onPlus:  () => setInputReps((r) => String(parseInt(r || "0") + 1)),
+                },
+                {
+                  label: "Weight (lbs)",
+                  value: inputWeight,
+                  onChange: setInputWeight,
+                  step: 5,
+                  onMinus: () => setInputWeight((w) => String(Math.max(0, parseFloat(w || "0") - 5))),
+                  onPlus:  () => setInputWeight((w) => String(parseFloat(w || "0") + 5)),
+                },
+              ].map(({ label, value, onChange, onMinus, onPlus }) => (
+                <div key={label}>
+                  <div style={{ ...eyebrow, marginBottom: 8 }}>{label}</div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     <button
-                      key={n}
-                      onClick={() => setInputRpe(n)}
+                      onClick={onMinus}
                       style={{
-                        flex: 1, padding: "10px", borderRadius: 8,
-                        border: `1px solid ${inputRpe === n ? (n >= 9 ? "#fd9644" : "#a29bfe") : "#2a3350"}`,
-                        background: inputRpe === n ? (n >= 9 ? "rgba(253,150,68,0.15)" : "rgba(162,155,254,0.15)") : "#161c2d",
-                        color: inputRpe === n ? (n >= 9 ? "#fd9644" : "#a29bfe") : "#7a8299",
-                        fontFamily: syne, fontSize: 14, fontWeight: 700, cursor: "pointer",
+                        width: 44, height: 52, borderRadius: 10,
+                        border: "1px solid var(--color-line)",
+                        background: "var(--color-bg-sunk)",
+                        color: "var(--color-ink)", fontSize: 20, cursor: "pointer",
+                        fontFamily: "inherit", flexShrink: 0,
                       }}
                     >
-                      {n}
+                      −
                     </button>
-                  ))}
+                    <input
+                      value={value}
+                      onChange={(e) => onChange(e.target.value)}
+                      type="number"
+                      inputMode="decimal"
+                      style={{
+                        flex: 1, height: 52,
+                        background: "var(--color-bg-sunk)",
+                        border: "1px solid var(--color-line)",
+                        borderRadius: 10,
+                        color: "var(--color-ink)",
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 20,
+                        fontWeight: 700,
+                        textAlign: "center",
+                        outline: "none",
+                      }}
+                    />
+                    <button
+                      onClick={onPlus}
+                      style={{
+                        width: 44, height: 52, borderRadius: 10,
+                        border: "1px solid var(--color-line)",
+                        background: "var(--color-bg-sunk)",
+                        color: "var(--color-ink)", fontSize: 20, cursor: "pointer",
+                        fontFamily: "inherit", flexShrink: 0,
+                      }}
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
-              </div>
-
-              <button
-                onClick={handleLogSet}
-                style={{
-                  width: "100%", padding: "16px", borderRadius: 12, border: "none",
-                  background: "linear-gradient(135deg, #a29bfe 0%, #4ecdc4 100%)",
-                  color: "#0d1117", fontFamily: syne, fontSize: 15, fontWeight: 800,
-                  letterSpacing: 1, cursor: "pointer",
-                }}
-              >
-                ✓ LOG SET {activeSetIdx + 1} & START REST
-              </button>
+              ))}
             </div>
-          )}
 
-          {/* Exercise complete banner */}
-          {setLogs[currentExIdx].every(Boolean) && (
-            <div style={{
-              padding: 18,
-              background: "rgba(78,205,196,0.1)", border: "1px solid #4ecdc4",
-              borderRadius: 14, textAlign: "center",
-            }}>
-              <div style={{ fontSize: 36, marginBottom: 8 }}>✓</div>
-              <div style={{ fontFamily: syne, fontSize: 18, fontWeight: 700, color: "#4ecdc4" }}>
-                Exercise Complete!
-              </div>
-              {currentExIdx < EXERCISE_LIBRARY.length - 1 && (
-                <button
-                  onClick={() => { setCurrentExIdx(currentExIdx + 1); setActiveSetIdx(0); }}
-                  style={{
-                    marginTop: 12, padding: "10px 20px", borderRadius: 10, border: "none",
-                    background: "#4ecdc4", color: "#0d1117",
-                    fontFamily: syne, fontSize: 13, fontWeight: 700, cursor: "pointer",
-                  }}
-                >
-                  Next: {EXERCISE_LIBRARY[currentExIdx + 1].name} →
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── RIGHT: History & cues ────────────────────────────────────────── */}
-        <div style={{ ...cardBase, alignSelf: "start" }}>
-          <CardTitle accent="#ffe66d">Last · {currentEx.lastSession.date}</CardTitle>
-          <div style={{ display: "grid", gap: 6, marginBottom: 16 }}>
-            {currentEx.lastSession.sets.map((s, i) => (
-              <div key={i} style={{
-                display: "flex", justifyContent: "space-between",
-                padding: "8px 10px", background: "#0d1117", borderRadius: 8, fontSize: 12,
-              }}>
-                <span style={{ color: "#7a8299", fontWeight: 600 }}>Set {i + 1}</span>
-                <span style={{ color: "#c0c8e0", fontFamily: mono }}>
-                  {s.reps} × {s.weight}lb
-                  <span style={{ color: s.rpe >= 9 ? "#fd9644" : "#9aa5c4", marginLeft: 6 }}>@ {s.rpe}</span>
+            {/* RPE */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <span style={eyebrow}>RPE</span>
+                <span style={{ fontSize: 11, color: "var(--color-ink-3)" }}>
+                  {inputRpe <= 6 ? "Easy" : inputRpe === 7 ? "3 reps left" : inputRpe === 8 ? "2 reps left" : inputRpe === 9 ? "1 rep left" : "Max effort"}
                 </span>
               </div>
-            ))}
-          </div>
-          <CardTitle accent="#fd9644">Form Cues</CardTitle>
-          <div style={{ display: "grid", gap: 8 }}>
-            {currentEx.cues.map((cue, i) => (
-              <div key={i} style={{
-                padding: "8px 10px", background: "#0d1117",
-                borderLeft: "2px solid #fd9644", borderRadius: 6,
-                fontSize: 12, color: "#c0c8e0",
-              }}>
-                {cue}
+              <div style={{ display: "flex", gap: 6 }}>
+                {[6, 7, 8, 9, 10].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setInputRpe(n)}
+                    style={{
+                      flex: 1,
+                      padding: "12px 0",
+                      borderRadius: 10,
+                      border: `1.5px solid ${inputRpe === n ? (n >= 9 ? "var(--color-accent)" : "var(--color-slate)") : "var(--color-line)"}`,
+                      background: inputRpe === n ? (n >= 9 ? "var(--color-accent-soft)" : "var(--color-bg-raised)") : "var(--color-bg-raised)",
+                      color: inputRpe === n ? (n >= 9 ? "var(--color-accent)" : "var(--color-slate)") : "var(--color-ink-3)",
+                      fontFamily: "inherit", fontSize: 15, fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    {n}
+                  </button>
+                ))}
               </div>
-            ))}
+            </div>
+
+            {/* Log button */}
+            <button
+              onClick={handleLogSet}
+              style={{
+                width: "100%",
+                padding: "16px",
+                borderRadius: 12,
+                border: "none",
+                background: "var(--color-ink)",
+                color: "var(--color-bg)",
+                fontFamily: "inherit",
+                fontSize: 15,
+                fontWeight: 700,
+                letterSpacing: "0.02em",
+                cursor: "pointer",
+              }}
+            >
+              Log Set {activeSetIdx + 1} &amp; Start Rest
+            </button>
           </div>
+        )}
+
+        {/* Exercise complete */}
+        {currentExSets.every(Boolean) && (
+          <div
+            style={{
+              background: "var(--color-bg-raised)",
+              border: "1px solid var(--color-moss)",
+              borderRadius: 14,
+              padding: "20px 16px",
+              textAlign: "center",
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ fontSize: 28, marginBottom: 6 }}>✓</div>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: 18, color: "var(--color-moss)" }}>
+              Exercise complete
+            </div>
+            {currentExIdx < exercises.length - 1 && (
+              <button
+                onClick={() => jumpToExercise(currentExIdx + 1)}
+                style={{
+                  marginTop: 12,
+                  padding: "11px 22px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "var(--color-ink)",
+                  color: "var(--color-bg)",
+                  fontFamily: "inherit",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Next: {exercises[currentExIdx + 1].name} →
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Previous session (collapsible) */}
+        <div
+          style={{
+            background: "var(--color-bg-raised)",
+            border: "1px solid var(--color-line)",
+            borderRadius: 12,
+            overflow: "hidden",
+            marginBottom: 10,
+          }}
+        >
+          <button
+            onClick={() => setShowPrevious((v) => !v)}
+            style={{
+              width: "100%",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "12px 14px",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            <span style={{ ...eyebrow, marginBottom: 0 }}>Last session · {currentEx.lastSession.date}</span>
+            <span style={{ fontSize: 14, color: "var(--color-ink-4)", transition: "transform 120ms", display: "inline-block", transform: showPrevious ? "rotate(180deg)" : "none" }}>
+              ▾
+            </span>
+          </button>
+          {showPrevious && (
+            <div style={{ padding: "0 14px 12px", display: "flex", flexDirection: "column", gap: 5 }}>
+              {currentEx.lastSession.sets.map((s, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "8px 10px",
+                    background: "var(--color-bg-sunk)",
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                >
+                  <span style={{ color: "var(--color-ink-4)", fontWeight: 600 }}>Set {i + 1}</span>
+                  <span style={{ fontFamily: "var(--font-mono)", color: "var(--color-ink-2)" }}>
+                    {s.reps} × {s.weight}lb
+                    <span style={{ color: s.rpe >= 9 ? "var(--color-accent)" : "var(--color-ink-4)", marginLeft: 8 }}>@ {s.rpe}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+
+        {/* Form cues (collapsible) */}
+        <div
+          style={{
+            background: "var(--color-bg-raised)",
+            border: "1px solid var(--color-line)",
+            borderRadius: 12,
+            overflow: "hidden",
+          }}
+        >
+          <button
+            onClick={() => setShowCues((v) => !v)}
+            style={{
+              width: "100%",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "12px 14px",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            <span style={{ ...eyebrow, marginBottom: 0 }}>Form cues</span>
+            <span style={{ fontSize: 14, color: "var(--color-ink-4)", display: "inline-block", transform: showCues ? "rotate(180deg)" : "none" }}>
+              ▾
+            </span>
+          </button>
+          {showCues && (
+            <div style={{ padding: "0 14px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
+              {currentEx.cues.map((cue, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: "8px 10px",
+                    background: "var(--color-bg-sunk)",
+                    borderLeft: "2px solid var(--color-accent)",
+                    borderRadius: "0 6px 6px 0",
+                    fontSize: 12,
+                    color: "var(--color-ink-2)",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {cue}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
       </div>
 
       {/* ── Floating rest timer ──────────────────────────────────────────────── */}
       {restRemaining > 0 && (
-        <div style={{
-          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
-          background: "linear-gradient(135deg, #1a1b3a 0%, #1a2035 100%)",
-          border: `2px solid ${restRemaining <= 10 ? "#fd9644" : "#a29bfe"}`,
-          borderRadius: 20, padding: "16px 24px", zIndex: 50, minWidth: 320,
-          boxShadow: `0 8px 32px ${restRemaining <= 10 ? "rgba(253,150,68,0.3)" : "rgba(162,155,254,0.3)"}`,
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <div style={{ fontSize: 11, color: "#7a8299", letterSpacing: 1.5, textTransform: "uppercase", fontWeight: 700 }}>
-              ⏱ Rest Timer
-            </div>
-            <div style={{ fontSize: 11, color: "#7a8299" }}>
-              Next: Set {activeSetIdx + 1}
-            </div>
+        <div
+          style={{
+            position: "fixed",
+            bottom: 76,
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "calc(100% - 32px)",
+            maxWidth: 380,
+            background: "var(--color-bg-raised)",
+            border: `1.5px solid ${restRemaining <= 10 ? "var(--color-accent)" : "var(--color-moss)"}`,
+            borderRadius: 18,
+            padding: "14px 18px",
+            zIndex: 50,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div style={{ ...eyebrow }}>Rest timer</div>
+            <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>Set {activeSetIdx + 1} next</div>
           </div>
-          <div style={{
-            fontFamily: mono, fontSize: 42, fontWeight: 700,
-            color: restRemaining <= 10 ? "#fd9644" : "#a29bfe",
-            textAlign: "center", lineHeight: 1, marginBottom: 8,
-          }}>
+          <div
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 44,
+              fontWeight: 700,
+              color: restRemaining <= 10 ? "var(--color-accent)" : "var(--color-moss)",
+              textAlign: "center",
+              lineHeight: 1,
+              marginBottom: 8,
+            }}
+          >
             {formatTime(restRemaining)}
           </div>
-          <div style={{ width: "100%", height: 4, background: "#0d1117", borderRadius: 2, overflow: "hidden", marginBottom: 12 }}>
-            <div style={{
-              width: `${(restRemaining / restTotal) * 100}%`, height: "100%",
-              background: restRemaining <= 10 ? "#fd9644" : "#a29bfe",
-              transition: "width 1s linear",
-            }} />
+          <div style={{ height: 4, background: "var(--color-bg-sunk)", borderRadius: 2, overflow: "hidden", marginBottom: 10 }}>
+            <div
+              style={{
+                width: `${(restRemaining / restTotal) * 100}%`,
+                height: "100%",
+                background: restRemaining <= 10 ? "var(--color-accent)" : "var(--color-moss)",
+                transition: "width 1s linear",
+              }}
+            />
           </div>
-          <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+          <div style={{ display: "flex", gap: 8 }}>
             {[15, 30].map((s) => (
               <button
                 key={s}
                 onClick={() => setRestRemaining((r) => r + s)}
-                style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #2a3350", background: "transparent", color: "#9aa5c4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                style={{
+                  flex: 1, padding: "10px 0", borderRadius: 10,
+                  border: "1px solid var(--color-line)",
+                  background: "var(--color-bg-sunk)",
+                  color: "var(--color-ink-2)", fontSize: 12, fontWeight: 600,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
               >
                 +{s}s
               </button>
             ))}
             <button
               onClick={() => setRestRemaining(0)}
-              style={{ padding: "6px 14px", borderRadius: 8, border: "none", background: "#4ecdc4", color: "#0d1117", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: syne }}
+              style={{
+                flex: 2, padding: "10px 0", borderRadius: 10,
+                border: "none",
+                background: "var(--color-ink)",
+                color: "var(--color-bg)", fontSize: 13, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
             >
               Skip →
             </button>
           </div>
         </div>
       )}
+
     </div>
   );
 }

@@ -1,0 +1,376 @@
+/* Workout App — minimalist, hi-fi, mobile-first */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap');
+
+:root {
+  /* Light "paper" palette */
+  --bg: #f4f1ec;
+  --bg-raised: #ffffff;
+  --bg-sunk: #ece8e1;
+  --ink: #16140f;
+  --ink-2: #3a3630;
+  --ink-3: #6e6960;
+  --ink-4: #9c968b;
+  --line: #e0dbd0;
+  --line-2: #cfc9bc;
+  --accent: #b84a2e;        /* terracotta — used sparingly */
+  --accent-soft: #f1d9cf;
+  --moss: #4a6a4d;          /* completed/positive */
+  --moss-soft: #e0e8dd;
+  --slate: #2f3a47;
+  --slate-soft: #dde1e6;
+}
+
+[data-theme="dark"] {
+  --bg: #14130f;
+  --bg-raised: #1c1b16;
+  --bg-sunk: #100f0c;
+  --ink: #f3efe6;
+  --ink-2: #d4cfc1;
+  --ink-3: #8d8779;
+  --ink-4: #5b564b;
+  --line: #2a2823;
+  --line-2: #3a3730;
+  --accent-soft: #3a2118;
+  --moss-soft: #1f2920;
+  --slate-soft: #1d242c;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Geist', system-ui, sans-serif;
+  background: #2a2722;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.app-root {
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Type system */
+.t-eyebrow {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.t-title-xl {
+  font-family: 'Instrument Serif', serif;
+  font-weight: 400;
+  font-size: 44px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.t-title-lg {
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.t-title {
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.t-body {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+.t-meta {
+  font-size: 12px;
+  color: var(--ink-3);
+  font-weight: 400;
+}
+.t-num {
+  font-family: 'Geist Mono', ui-monospace, monospace;
+  font-weight: 500;
+  font-feature-settings: 'tnum' 1;
+}
+.t-display-num {
+  font-family: 'Instrument Serif', serif;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 0.9;
+}
+
+/* Scroll area */
+.scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.scroll::-webkit-scrollbar { display: none; }
+
+/* Tile */
+.tile {
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  position: relative;
+}
+.tile-flat {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+}
+.tile-sunk {
+  background: var(--bg-sunk);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+/* Tab bar */
+.tabbar {
+  display: flex;
+  border-top: 1px solid var(--line);
+  background: rgba(255,255,255,0.85);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  padding: 8px 6px 6px;
+  gap: 0;
+  position: relative;
+  z-index: 5;
+}
+[data-theme="dark"] .tabbar {
+  background: rgba(20,19,15,0.85);
+}
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 4px 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-3);
+  font-family: inherit;
+  transition: color 160ms;
+}
+.tab[aria-current="true"] { color: var(--ink); }
+.tab-label {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+/* Buttons */
+.btn {
+  font-family: inherit;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 160ms cubic-bezier(.2,.7,.2,1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-primary {
+  background: var(--ink);
+  color: var(--bg);
+}
+.btn-primary:active { background: var(--ink-2); }
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line-2);
+}
+.btn-accent {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-block {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 15px;
+}
+
+/* Pill */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  background: var(--bg-sunk);
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+}
+.pill-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: transparent;
+}
+.pill-moss {
+  background: var(--moss-soft);
+  color: var(--moss);
+  border-color: transparent;
+}
+.pill-slate {
+  background: var(--slate-soft);
+  color: var(--slate);
+  border-color: transparent;
+}
+
+/* Segmented */
+.seg {
+  display: flex;
+  background: var(--bg-sunk);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+.seg button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 7px 6px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-3);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 140ms;
+}
+.seg button[aria-pressed="true"] {
+  background: var(--bg-raised);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+/* Body diagram */
+.body-svg path,
+.body-svg circle,
+.body-svg ellipse {
+  transition: fill 200ms, stroke 200ms;
+}
+
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.fade-in { animation: fadeIn 220ms cubic-bezier(.2,.7,.2,1) both; }
+
+/* Divider */
+.hr {
+  height: 1px;
+  background: var(--line);
+  border: 0;
+  margin: 0;
+}
+
+/* Tap row */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+.row + .row { border-top: 1px solid var(--line); }
+
+/* Number stat block */
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stat-num {
+  font-family: 'Instrument Serif', serif;
+  font-size: 32px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.stat-num small {
+  font-family: 'Geist', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-3);
+  letter-spacing: 0;
+}
+.stat-label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+/* Chip row scroller */
+.chip-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 -16px;
+  padding: 0 16px;
+}
+.chip-row::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 160ms;
+  font-family: inherit;
+  font-weight: 500;
+}
+.chip[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+
+/* Input */
+.field {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 13px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 15px;
+  background: var(--bg-raised);
+  color: var(--ink);
+  text-align: center;
+  font-weight: 500;
+  -moz-appearance: textfield;
+}
+.field::-webkit-outer-spin-button, .field::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.field:focus { outline: none; border-color: var(--ink); }
+
+/* Chart hover dot */
+.dot-hit { cursor: pointer; }

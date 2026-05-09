@@ -1,35 +1,48 @@
 @import "tailwindcss";
 
-/* Design tokens — match reference/health-dashboard_2.html */
-:root {
-  --bg-base: #0d1117;
-  --bg-card: #161c2d;
-  --bg-card-alt: #1a2035;
-  --bg-inset: #0d1117;
+/* ── Color tokens (cream/paper palette) ──────────────────── */
+@theme {
+  --color-bg:          #f4f1ec;
+  --color-bg-raised:   #ffffff;
+  --color-bg-sunk:     #ece8e1;
 
-  --border-subtle: #2a3350;
-  --border-dim: #1e2640;
+  --color-ink:         #16140f;
+  --color-ink-2:       #3a3630;
+  --color-ink-3:       #6e6960;
+  --color-ink-4:       #9c968b;
 
-  --text-primary: #e8ecf8;
-  --text-secondary: #c0c8e0;
-  --text-muted: #9aa5c4;
-  --text-dim: #7a8299;
-  --text-ghost: #4a5568;
+  --color-line:        #e0dbd0;
+  --color-line-2:      #cfc9bc;
 
-  --accent-teal: #4ecdc4;
-  --accent-purple: #a29bfe;
-  --accent-yellow: #ffe66d;
-  --accent-red: #ff6b6b;
-  --accent-orange: #fd9644;
-  --accent-indigo: #5b6ee1;
+  --color-accent:      #b84a2e;
+  --color-accent-soft: #f1d9cf;
+  --color-moss:        #4a6a4d;
+  --color-moss-soft:   #e0e8dd;
+  --color-slate:       #2f3a47;
+  --color-slate-soft:  #dde1e6;
 }
 
+/* ── Font tokens (resolved from next/font CSS vars) ──────── */
 @theme inline {
-  --color-background: var(--bg-base);
-  --color-foreground: var(--text-primary);
-  --font-sans: var(--font-dm-sans);
-  --font-display: var(--font-syne);
-  --font-mono: var(--font-jetbrains-mono);
+  --font-sans:    var(--font-geist),            system-ui, sans-serif;
+  --font-mono:    var(--font-geist-mono),       ui-monospace, monospace;
+  --font-display: var(--font-instrument-serif), serif;
+}
+
+/* ── Dark mode overrides ─────────────────────────────────── */
+[data-theme="dark"] {
+  --color-bg:          #14130f;
+  --color-bg-raised:   #1c1b16;
+  --color-bg-sunk:     #100f0c;
+  --color-ink:         #f3efe6;
+  --color-ink-2:       #d4cfc1;
+  --color-ink-3:       #8d8779;
+  --color-ink-4:       #5b564b;
+  --color-line:        #2a2823;
+  --color-line-2:      #3a3730;
+  --color-accent-soft: #3a2118;
+  --color-moss-soft:   #1f2920;
+  --color-slate-soft:  #1d242c;
 }
 
 * {
@@ -38,8 +51,21 @@
 
 html,
 body {
-  background: var(--bg-base);
-  color: var(--text-primary);
-  font-family: var(--font-dm-sans), "DM Sans", sans-serif;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+.fade-in {
+  animation: fadeIn 220ms cubic-bezier(.2,.7,.2,1) both;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
 }

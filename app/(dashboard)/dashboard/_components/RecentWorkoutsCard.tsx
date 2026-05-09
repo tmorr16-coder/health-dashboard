@@ -13,7 +13,7 @@ interface Props {
 
 function fmtDayLabel(isoTs: string): string {
   const d = new Date(isoTs);
-  const dateStr = d.toLocaleDateString("sv"); // YYYY-MM-DD local
+  const dateStr = d.toLocaleDateString("sv");
   const today = new Date().toLocaleDateString("sv");
   const yesterday = new Date(Date.now() - 86_400_000).toLocaleDateString("sv");
   if (dateStr === today) return "Today";
@@ -39,46 +39,41 @@ function fmtCalories(cal: number | null): string {
 }
 
 function fmtWorkoutType(raw: string): string {
-  // Convert camelCase / PascalCase HealthKit names to readable form
-  // e.g. "TraditionalStrengthTraining" → "Traditional Strength Training"
   return raw.replace(/([a-z])([A-Z])/g, "$1 $2");
 }
+
+const tileStyle: React.CSSProperties = {
+  gridColumn: "1 / -1",
+  background: "var(--color-bg-raised)",
+  border: "1px solid var(--color-line)",
+  borderRadius: 14,
+  padding: "20px 22px",
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 500,
+  letterSpacing: "0.14em",
+  textTransform: "uppercase",
+  color: "var(--color-ink-3)",
+  marginBottom: 14,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+};
 
 export default function RecentWorkoutsCard({ workouts }: Props) {
   if (workouts.length === 0) {
     return (
-      <div
-        style={{
-          gridColumn: "1 / -1",
-          background: "linear-gradient(135deg, #161c2d 0%, #1a2035 100%)",
-          border: "1px solid #2a3350",
-          borderRadius: 16,
-          padding: "20px 22px",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-          <div style={{ width: 3, height: 16, background: "#a29bfe", borderRadius: 2 }} />
-          <span
-            style={{
-              fontFamily: "var(--font-syne)",
-              fontSize: 13,
-              fontWeight: 700,
-              color: "#c0c8e0",
-              letterSpacing: 1.2,
-              textTransform: "uppercase",
-            }}
-          >
-            Recent Workouts
-          </span>
-        </div>
-        <div style={{ fontSize: 13, color: "#3a4460", textAlign: "center", padding: "16px 0" }}>
+      <div style={tileStyle}>
+        <div style={eyebrowStyle}>Recent Workouts</div>
+        <div style={{ fontSize: 13, color: "var(--color-ink-4)", textAlign: "center", padding: "16px 0" }}>
           No workouts in the last 7 days
         </div>
       </div>
     );
   }
 
-  // Group by day label (preserving order, already sorted desc by timestamp)
   const groups: { day: string; rows: WorkoutRow[] }[] = [];
   for (const w of workouts) {
     const day = fmtDayLabel(w.timestamp);
@@ -91,30 +86,10 @@ export default function RecentWorkoutsCard({ workouts }: Props) {
   }
 
   return (
-    <div
-      style={{
-        gridColumn: "1 / -1",
-        background: "linear-gradient(135deg, #161c2d 0%, #1a2035 100%)",
-        border: "1px solid #2a3350",
-        borderRadius: 16,
-        padding: "20px 22px",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-        <div style={{ width: 3, height: 16, background: "#a29bfe", borderRadius: 2 }} />
-        <span
-          style={{
-            fontFamily: "var(--font-syne)",
-            fontSize: 13,
-            fontWeight: 700,
-            color: "#c0c8e0",
-            letterSpacing: 1.2,
-            textTransform: "uppercase",
-          }}
-        >
-          Recent Workouts
-        </span>
-        <span style={{ marginLeft: "auto", fontSize: 11, color: "#4a5568" }}>Last 7 days</span>
+    <div style={tileStyle}>
+      <div style={eyebrowStyle}>
+        <span>Recent Workouts</span>
+        <span>Last 7 days</span>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -123,10 +98,10 @@ export default function RecentWorkoutsCard({ workouts }: Props) {
             <div
               style={{
                 fontSize: 10,
-                color: "#4a5568",
+                color: "var(--color-ink-4)",
                 textTransform: "uppercase",
-                letterSpacing: 1.5,
-                fontWeight: 700,
+                letterSpacing: "0.12em",
+                fontWeight: 500,
                 marginBottom: 6,
               }}
             >
@@ -143,7 +118,7 @@ export default function RecentWorkoutsCard({ workouts }: Props) {
                   <div
                     key={w.id}
                     style={{
-                      background: "#0d1117",
+                      background: "var(--color-bg-sunk)",
                       borderRadius: 10,
                       padding: "10px 14px",
                       display: "flex",
@@ -154,10 +129,9 @@ export default function RecentWorkoutsCard({ workouts }: Props) {
                   >
                     <div
                       style={{
-                        fontFamily: "var(--font-syne)",
                         fontSize: 14,
-                        fontWeight: 700,
-                        color: "#c0c8e0",
+                        fontWeight: 600,
+                        color: "var(--color-ink)",
                         minWidth: 0,
                         whiteSpace: "nowrap",
                         overflow: "hidden",
@@ -169,7 +143,7 @@ export default function RecentWorkoutsCard({ workouts }: Props) {
                     <div
                       style={{
                         fontSize: 12,
-                        color: "#7a8299",
+                        color: "var(--color-ink-3)",
                         whiteSpace: "nowrap",
                         flexShrink: 0,
                       }}

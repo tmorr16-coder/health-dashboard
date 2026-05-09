@@ -1,51 +1,33 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/auth";
-import type { Database } from "@/lib/types/database";
 import ScoreRings from "./_components/ScoreRings";
-import BodyCompChart from "./_components/BodyCompChart";
-import DoseReminderBanner from "./_components/DoseReminderBanner";
 import ActivityCard from "./_components/ActivityCard";
 import RecentWorkoutsCard, { type WorkoutRow } from "./_components/RecentWorkoutsCard";
-
-type DoseRow = Database["public"]["Tables"]["doses"]["Row"];
+import ChatWidget from "./_components/ChatWidget";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
-const INJECTION_SITES = [
-  "Left abdomen",
-  "Right abdomen",
-  "Left thigh",
-  "Right thigh",
-  "Left arm",
-  "Right arm",
-];
-
-const MOCK_LAST_SITE = "Right thigh"; // week-4 mock
-const MOCK_DOSE_COUNT = 4;
-
-const MOCK_BODY_COMP = {
-  startWeight: 191.8,  currentWeight: 184.2,
-  startMuscle: 140.4,  currentMuscle: 142.1,
-  startBodyFat: 19.2,  currentBodyFat: 16.8,
-  weeklyWeight: [191.8, 189.4, 187.1, 185.5, 184.2],
-  weeklyMuscle: [140.4, 140.9, 141.3, 141.7, 142.1],
-  weeklyFat:    [19.2,  18.6,  17.9,  17.3,  16.8],
-};
-
 const SCORE_FALLBACKS = [
-  { label: "Readiness", value: 82, color: "#4ecdc4" },
-  { label: "Activity",  value: 74, color: "#ffe66d" },
-  { label: "Recovery",  value: 88, color: "#a29bfe" },
+  { label: "Readiness", value: 82, color: "var(--color-moss)" },
+  { label: "Activity",  value: 74, color: "var(--color-accent)" },
+  { label: "Recovery",  value: 88, color: "var(--color-slate)" },
 ];
+
+const WEEK_DAYS = ["M", "T", "W", "T", "F", "S", "S"];
+
+const TODAY_WORKOUT = {
+  name:     "Lower Body Power",
+  duration: "45–55 min",
+  muscles:  ["Quads", "Glutes", "Hamstrings", "Calves"],
+};
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function relativeTime(isoTs: string): string {
   const mins = Math.floor((Date.now() - new Date(isoTs).getTime()) / 60_000);
   if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
+  if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
@@ -55,15 +37,11 @@ function toMiles(value: number, unit: string): number {
   const u = (unit ?? "km").toLowerCase();
   if (u === "mi" || u === "miles") return value;
   if (u === "km") return value / 1.60934;
-  return value / 1609.344; // assume meters
+  return value / 1609.344;
 }
 
 function formatDate(d: Date) {
-  return d.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
+  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 }
 
 function getGreeting() {
@@ -73,28 +51,25 @@ function getGreeting() {
   return "Good evening";
 }
 
-function nextDoseDateFrom(lastDateStr: string): string {
-  // Parse as local date to avoid UTC midnight off-by-one
-  const [y, m, d] = lastDateStr.split("-").map(Number);
-  const next = new Date(y, m - 1, d + 7);
-  return next.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+function toLocalDate(d: Date): string {
+  return d.toLocaleDateString("sv");
+}
+
+function getMondayOf(d: Date): Date {
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const mon = new Date(d);
+  mon.setDate(d.getDate() + diff);
+  mon.setHours(0, 0, 0, 0);
+  return mon;
 }
 
 // ── page ──────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
-  const userId = getCurrentUserId();
-
-  const { data: rawDoses } = (await supabase
-    .from("doses")
-    .select("*")
-    .eq("user_id", userId)
-    .order("date", { ascending: true })) as { data: DoseRow[] | null; error: unknown };
-
-  // ── Apple Health queries ────────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
+  const userId = getCurrentUserId();
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -103,21 +78,36 @@ export default async function DashboardPage() {
   const sevenDaysAgo = new Date(todayStart);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
+  const monday    = getMondayOf(todayStart);
+  const nextMonday = new Date(monday);
+  nextMonday.setDate(monday.getDate() + 7);
+
   const [
-    { data: lastSyncRows },
+    { data: appleLastRow },
+    { data: ouraLastSyncRow },
+    { data: withingsLastRow },
     { data: stepsRows },
     { data: energyRows },
     { data: distanceRows },
     { data: hrRows },
     { data: recentWorkoutRows },
-    { data: latestWeightRows },
-    { data: oldestWeightRows },
+    { data: weekSessionRows },
+    { data: weekAppleRows },
   ] = await Promise.all([
+    // Per-source last sync times
     db.from("apple_health_metrics")
       .select("created_at")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(1),
+      .eq("user_id", userId).eq("source", "apple_health")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    db.from("apple_health_metrics")
+      .select("created_at")
+      .eq("user_id", userId).eq("source", "oura")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    db.from("apple_health_metrics")
+      .select("created_at")
+      .eq("user_id", userId).eq("source", "withings")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    // Today's activity
     db.from("apple_health_metrics")
       .select("value")
       .eq("user_id", userId)
@@ -142,32 +132,27 @@ export default async function DashboardPage() {
       .in("metric_name", ["heart_rate", "Heart Rate"])
       .order("timestamp", { ascending: false })
       .limit(1),
+    // Recent workouts (last 7 days)
     db.from("apple_health_workouts")
       .select("id, timestamp, workout_type, duration_sec, distance_m, calories")
       .eq("user_id", userId)
       .gte("timestamp", sevenDaysAgo.toISOString())
       .order("timestamp", { ascending: false })
       .limit(50),
-    // Withings weight: most recent reading
-    db.from("apple_health_metrics")
-      .select("value")
+    // This week's workout sessions
+    db.from("workout_sessions")
+      .select("date")
       .eq("user_id", userId)
-      .eq("source", "withings")
-      .eq("metric_name", "weight")
-      .order("timestamp", { ascending: false })
-      .limit(1),
-    // Withings weight: oldest reading in last 30 days (for delta)
-    db.from("apple_health_metrics")
-      .select("value")
+      .gte("date", toLocalDate(monday))
+      .lt("date", toLocalDate(nextMonday)),
+    db.from("apple_health_workouts")
+      .select("timestamp")
       .eq("user_id", userId)
-      .eq("source", "withings")
-      .eq("metric_name", "weight")
-      .gte("timestamp", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-      .order("timestamp", { ascending: true })
-      .limit(1),
+      .gte("timestamp", monday.toISOString())
+      .lt("timestamp", nextMonday.toISOString()),
   ]);
 
-  // ── Oura score queries ───────────────────────────────────────────────────────
+  // ── Oura scores ───────────────────────────────────────────────────────────
   const sevenDaysAgoIso = sevenDaysAgo.toISOString();
   const [
     { data: readinessRow },
@@ -191,15 +176,22 @@ export default async function DashboardPage() {
       .order("timestamp", { ascending: false }).limit(1).maybeSingle(),
   ]);
 
+  // ── Derived values ────────────────────────────────────────────────────────
+
   type ScoreRow = { value: number } | null;
   const SCORES = [
-    { label: "Readiness", value: Math.round((readinessRow as ScoreRow)?.value  ?? SCORE_FALLBACKS[0].value), color: "#4ecdc4" },
-    { label: "Activity",  value: Math.round((activityRow  as ScoreRow)?.value  ?? SCORE_FALLBACKS[1].value), color: "#ffe66d" },
-    { label: "Recovery",  value: Math.round((sleepScoreRow as ScoreRow)?.value ?? SCORE_FALLBACKS[2].value), color: "#a29bfe" },
+    { label: "Readiness", value: Math.round((readinessRow  as ScoreRow)?.value ?? SCORE_FALLBACKS[0].value), color: SCORE_FALLBACKS[0].color },
+    { label: "Activity",  value: Math.round((activityRow   as ScoreRow)?.value ?? SCORE_FALLBACKS[1].value), color: SCORE_FALLBACKS[1].color },
+    { label: "Recovery",  value: Math.round((sleepScoreRow as ScoreRow)?.value ?? SCORE_FALLBACKS[2].value), color: SCORE_FALLBACKS[2].color },
   ];
 
-  const lastSync: string | null =
-    (lastSyncRows as { created_at: string }[] | null)?.[0]?.created_at ?? null;
+  // Per-source sync timestamps
+  type SyncRow = { created_at: string } | null;
+  const syncSources = [
+    { key: "watch",    icon: "⌚", label: "Watch",    ts: (appleLastRow    as SyncRow)?.created_at ?? null },
+    { key: "oura",     icon: "💍", label: "Oura",     ts: (ouraLastSyncRow as SyncRow)?.created_at ?? null },
+    { key: "withings", icon: "⚖️", label: "Withings", ts: (withingsLastRow as SyncRow)?.created_at ?? null },
+  ].filter((s) => s.ts !== null) as { key: string; icon: string; label: string; ts: string }[];
 
   type MetricRow = { value: number };
   const steps: number | null = (stepsRows as MetricRow[] | null)?.length
@@ -211,65 +203,44 @@ export default async function DashboardPage() {
 
   type DistRow = { value: number; unit: string };
   const distanceMiles: number | null = (distanceRows as DistRow[] | null)?.length
-    ? parseFloat(
-        (distanceRows as DistRow[])
-          .reduce((s, r) => s + toMiles(r.value, r.unit), 0)
-          .toFixed(2)
-      )
+    ? parseFloat((distanceRows as DistRow[]).reduce((s, r) => s + toMiles(r.value, r.unit), 0).toFixed(2))
     : null;
 
-  const heartRateBpm: number | null =
-    (hrRows as MetricRow[] | null)?.[0]?.value ?? null;
+  const heartRateBpm: number | null = (hrRows as MetricRow[] | null)?.[0]?.value ?? null;
 
-  const recentWorkouts: WorkoutRow[] =
-    (recentWorkoutRows as WorkoutRow[] | null) ?? [];
+  const recentWorkouts: WorkoutRow[] = (recentWorkoutRows as WorkoutRow[] | null) ?? [];
 
-  type WtRow = { value: number };
-  const withingsCurrentLbs: number | null =
-    (latestWeightRows as WtRow[] | null)?.[0]?.value ?? null;
-  const withingsOldestLbs: number | null =
-    (oldestWeightRows as WtRow[] | null)?.[0]?.value ?? null;
+  // This week active days
+  const activeDays = new Set<number>();
+  (weekSessionRows as { date: string }[] | null)?.forEach((r) => {
+    const d = new Date(r.date + "T00:00:00");
+    activeDays.add((d.getDay() + 6) % 7);
+  });
+  (weekAppleRows as { timestamp: string }[] | null)?.forEach((r) => {
+    const d = new Date(r.timestamp);
+    activeDays.add((d.getDay() + 6) % 7);
+  });
+  const todayIdx = (todayStart.getDay() + 6) % 7;
 
-  // ── Dose data ────────────────────────────────────────────────────────────────
-  const hasRealDoses = rawDoses && rawDoses.length > 0;
-
-  const lastSite = hasRealDoses
-    ? (rawDoses[rawDoses.length - 1].injection_site ?? "Unknown")
-    : MOCK_LAST_SITE;
-
-  const doseCount = hasRealDoses ? rawDoses.length : MOCK_DOSE_COUNT;
-
-  const nextDoseDate = hasRealDoses
-    ? nextDoseDateFrom(rawDoses[rawDoses.length - 1].date)
-    : "Tuesday, Apr 29"; // 7 days after mock week-4 date
-
-  const currentDoseMg = hasRealDoses
-    ? rawDoses[rawDoses.length - 1].dose_mg
-    : 5;
-
-  const recommendedSite = INJECTION_SITES.find((s) => s !== lastSite) ?? "Left abdomen";
-
-  const bc = MOCK_BODY_COMP;
-  const weightLost   = (bc.startWeight  - bc.currentWeight).toFixed(1);
-  const muscleGained = (bc.currentMuscle - bc.startMuscle).toFixed(1);
-  const fatLost      = (bc.startBodyFat  - bc.currentBodyFat).toFixed(1);
-
-  const today = formatDate(new Date());
+  const today    = formatDate(new Date());
   const greeting = getGreeting();
 
-  return (
-    <div style={{ fontFamily: "var(--font-dm-sans)", color: "#e8ecf8" }}>
+  const healthSystemContext = `You are a knowledgeable health and fitness coach. Give concise, practical advice about nutrition, exercise, recovery, and wellness. Keep replies to 2-4 sentences unless more detail is genuinely needed. Be direct and specific. The user is tracking their health data including steps, sleep, readiness, and workouts.`;
 
-      {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <div style={{ padding: "20px 24px 12px", borderBottom: "1px solid #1a2035" }}>
+  return (
+    <div>
+
+      {/* ── Header ───────────────────────────────────────────────────────── */}
+      <div style={{ padding: "20px 20px 14px", borderBottom: "1px solid var(--color-line)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div
             style={{
-              fontSize: 12,
-              color: "#4a5568",
-              letterSpacing: 2,
+              fontSize: 10,
+              color: "var(--color-ink-3)",
+              letterSpacing: "0.14em",
               textTransform: "uppercase",
-              marginBottom: 4,
+              fontWeight: 500,
+              marginBottom: 6,
             }}
           >
             {today}
@@ -278,380 +249,300 @@ export default async function DashboardPage() {
             href="/dashboard/settings/integrations"
             style={{
               fontSize: 11,
-              color: "#3a4460",
+              color: "var(--color-ink-3)",
               textDecoration: "none",
               padding: "4px 10px",
-              border: "1px solid #2a3350",
+              border: "1px solid var(--color-line)",
               borderRadius: 8,
-              letterSpacing: 0.5,
             }}
           >
             ⚙ Integrations
           </Link>
         </div>
-        <div style={{ fontFamily: "var(--font-syne)", fontSize: 26, fontWeight: 800 }}>
-          {greeting}, <span style={{ color: "#4ecdc4" }}>Terry</span> 👋
-        </div>
-        <div style={{ fontSize: 13, color: "#7a8299", marginTop: 3, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          <span>
-            🔥 14-day streak · 💉 Zepbound Wk {doseCount} · Next dose in{" "}
-            <span style={{ color: "#fd9644", fontWeight: 600 }}>
-              {(() => {
-                const [y, m, d] = (
-                  hasRealDoses ? rawDoses[rawDoses.length - 1].date : "2026-04-22"
-                )
-                  .split("-")
-                  .map(Number);
-                const next = new Date(y, m - 1, d + 7);
-                const days = Math.ceil(
-                  (next.getTime() - Date.now()) / 86_400_000
-                );
-                return days > 0 ? `${days} days` : "today";
-              })()}
-            </span>
-          </span>
-          {lastSync && (
-            <span style={{ fontSize: 11, color: "#3a4460" }}>
-              📡 Last sync: {relativeTime(lastSync)}
-            </span>
-          )}
-        </div>
-      </div>
 
-      {/* ── Grid ───────────────────────────────────────────────────────────── */}
-      <div
-        style={{
-          padding: "20px 24px",
-          maxWidth: 1200,
-          display: "grid",
-          gap: 16,
-          gridTemplateColumns: "1fr 1fr",
-        }}
-      >
-
-        {/* Dose Reminder Banner — Client Component (owns modal state) */}
-        <DoseReminderBanner
-          recommendedSite={recommendedSite}
-          doseCount={doseCount}
-          nextDoseDate={nextDoseDate}
-          defaultDoseMg={currentDoseMg}
-        />
-
-        {/* AI Coach Card */}
         <div
           style={{
-            gridColumn: "1 / -1",
-            background: "linear-gradient(135deg, #1d2e3d 0%, #1a2035 100%)",
-            border: "1px solid #a29bfe50",
-            borderRadius: 16,
-            padding: "20px 22px",
+            fontFamily: "var(--font-display)",
+            fontSize: 34,
+            fontWeight: 400,
+            letterSpacing: "-0.02em",
+            lineHeight: 1.1,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-            <div style={{ width: 3, height: 16, background: "#a29bfe", borderRadius: 2 }} />
-            <span
-              style={{
-                fontFamily: "var(--font-syne)",
-                fontSize: 13,
-                fontWeight: 700,
-                color: "#c0c8e0",
-                letterSpacing: 1.2,
-                textTransform: "uppercase",
-              }}
-            >
-              💡 Today&apos;s AI Coach Recommendation
-            </span>
+          {greeting},<br />
+          <span style={{ color: "var(--color-accent)" }}>Terry.</span>
+        </div>
+
+        {/* Per-source sync status */}
+        {syncSources.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+            {syncSources.map(({ key, icon, label, ts }) => (
+              <div
+                key={key}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "3px 9px",
+                  borderRadius: 20,
+                  background: "var(--color-bg-raised)",
+                  border: "1px solid var(--color-line)",
+                  fontSize: 11,
+                  color: "var(--color-ink-3)",
+                }}
+              >
+                <span style={{ fontSize: 12 }}>{icon}</span>
+                <span style={{ fontWeight: 500 }}>{label}</span>
+                <span style={{ color: "var(--color-ink-4)" }}>·</span>
+                <span>{relativeTime(ts)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Cards ────────────────────────────────────────────────────────── */}
+      <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
+
+        {/* Quick-start workout */}
+        <div
+          style={{
+            background: "var(--color-ink)",
+            borderRadius: 14,
+            padding: "18px 18px 0",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 9,
+              fontWeight: 600,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+              color: "rgba(244,241,236,0.45)",
+              marginBottom: 6,
+            }}
+          >
+            Today&apos;s workout
           </div>
           <div
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 12,
+              fontFamily: "var(--font-display)",
+              fontSize: 26,
+              fontWeight: 400,
+              letterSpacing: "-0.01em",
+              color: "var(--color-bg)",
+              lineHeight: 1.1,
               marginBottom: 12,
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ fontSize: 32 }}>🏋️</div>
-              <div>
-                <div
-                  style={{
-                    fontFamily: "var(--font-syne)",
-                    fontSize: 18,
-                    fontWeight: 700,
-                    color: "#a29bfe",
-                  }}
-                >
-                  Lower Body Power
-                </div>
-                <div style={{ fontSize: 12, color: "#9aa5c4" }}>
-                  45–55 min · Heavy · Quads, Glutes, Hamstrings
-                </div>
-              </div>
-            </div>
-            <Link
-              href="/dashboard/workout"
-              style={{
-                display: "inline-block",
-                padding: "10px 20px",
-                borderRadius: 10,
-                background: "linear-gradient(135deg, #a29bfe 0%, #4ecdc4 100%)",
-                color: "#0d1117",
-                fontFamily: "var(--font-syne)",
-                fontSize: 13,
-                fontWeight: 800,
-                cursor: "pointer",
-                letterSpacing: 0.5,
-                textDecoration: "none",
-              }}
-            >
-              ▸ Start Tracked Session
-            </Link>
+            {TODAY_WORKOUT.name}
           </div>
-          <div
-            style={{
-              padding: 12,
-              background: "#0d1117",
-              borderRadius: 10,
-              fontSize: 13,
-              color: "#c0c8e0",
-              lineHeight: 1.5,
-            }}
-          >
-            <span style={{ color: "#a29bfe", fontWeight: 600 }}>Why this:</span> You&apos;re{" "}
-            {doseCount} weeks into Zepbound — lower body resistance is critical for muscle
-            preservation. Recovery is high (88) and you haven&apos;t trained legs since Thursday.
-          </div>
-        </div>
 
-        {/* Activity Card — real Apple Health data */}
-        <ActivityCard
-          steps={steps}
-          activeEnergyCal={activeEnergyCal}
-          distanceMiles={distanceMiles}
-          heartRateBpm={heartRateBpm}
-        />
-
-        {/* Daily Scores */}
-        <div
-          style={{
-            background: "linear-gradient(135deg, #161c2d 0%, #1a2035 100%)",
-            border: "1px solid #2a3350",
-            borderRadius: 16,
-            padding: "20px 22px",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-            <div style={{ width: 3, height: 16, background: "#4ecdc4", borderRadius: 2 }} />
+          {/* Muscle chips */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+            {TODAY_WORKOUT.muscles.map((m) => (
+              <span
+                key={m}
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 20,
+                  background: "rgba(244,241,236,0.10)",
+                  border: "1px solid rgba(244,241,236,0.18)",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: "rgba(244,241,236,0.75)",
+                }}
+              >
+                {m}
+              </span>
+            ))}
             <span
               style={{
-                fontFamily: "var(--font-syne)",
-                fontSize: 13,
-                fontWeight: 700,
-                color: "#c0c8e0",
-                letterSpacing: 1.2,
-                textTransform: "uppercase",
+                padding: "4px 10px",
+                borderRadius: 20,
+                background: "transparent",
+                fontSize: 11,
+                color: "rgba(244,241,236,0.40)",
               }}
             >
-              Today&apos;s Scores
+              {TODAY_WORKOUT.duration}
             </span>
           </div>
-          <ScoreRings scores={SCORES} />
-        </div>
 
-        {/* Zepbound Progress — links to detail page */}
-        <Link
-          href="/dashboard/zepbound"
-          style={{ textDecoration: "none", color: "inherit" }}
-        >
-          <div
-            style={{
-              background: "linear-gradient(135deg, #161c2d 0%, #1a2035 100%)",
-              border: "1px solid #2a3350",
-              borderRadius: 16,
-              padding: "20px 22px",
-              height: "100%",
-              transition: "border-color 0.15s",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-              <div style={{ width: 3, height: 16, background: "#5b6ee1", borderRadius: 2 }} />
-              <span
-                style={{
-                  fontFamily: "var(--font-syne)",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#c0c8e0",
-                  letterSpacing: 1.2,
-                  textTransform: "uppercase",
-                }}
-              >
-                Zepbound · Week {doseCount}
-              </span>
-              <span style={{ marginLeft: "auto", fontSize: 11, color: "#4a5568" }}>
-                View all →
-              </span>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <div
-                style={{
-                  background: "#0d1117",
-                  borderRadius: 10,
-                  padding: 12,
-                  borderLeft: "3px solid #4ecdc4",
-                }}
-              >
-                <div
-                  style={{ fontSize: 10, color: "#7a8299", textTransform: "uppercase", letterSpacing: 1 }}
-                >
-                  Weight
-                </div>
-                {withingsCurrentLbs !== null ? (
-                  <>
-                    <div
-                      style={{ fontFamily: "var(--font-syne)", fontSize: 18, fontWeight: 700, color: "#4ecdc4" }}
-                    >
-                      {withingsCurrentLbs.toFixed(1)} lbs
-                    </div>
-                    {withingsOldestLbs !== null && withingsOldestLbs !== withingsCurrentLbs && (
-                      <div style={{ fontSize: 10, color: "#7a8299", marginTop: 2 }}>
-                        {(() => {
-                          const delta = withingsCurrentLbs - withingsOldestLbs;
-                          return `${delta > 0 ? "+" : ""}${delta.toFixed(1)} lbs · 30d`;
-                        })()}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div
-                    style={{ fontFamily: "var(--font-syne)", fontSize: 18, fontWeight: 700, color: "#4ecdc4" }}
-                  >
-                    −{weightLost} lbs
-                  </div>
-                )}
-              </div>
-              <div
-                style={{
-                  background: "#0d1117",
-                  borderRadius: 10,
-                  padding: 12,
-                  borderLeft: "3px solid #a29bfe",
-                }}
-              >
-                <div
-                  style={{ fontSize: 10, color: "#7a8299", textTransform: "uppercase", letterSpacing: 1 }}
-                >
-                  Muscle
-                </div>
-                <div
-                  style={{ fontFamily: "var(--font-syne)", fontSize: 18, fontWeight: 700, color: "#a29bfe" }}
-                >
-                  +{muscleGained} lbs
-                </div>
-              </div>
-              <div
-                style={{
-                  background: "#0d1117",
-                  borderRadius: 10,
-                  padding: 12,
-                  borderLeft: "3px solid #ffe66d",
-                }}
-              >
-                <div
-                  style={{ fontSize: 10, color: "#7a8299", textTransform: "uppercase", letterSpacing: 1 }}
-                >
-                  Body Fat
-                </div>
-                <div
-                  style={{ fontFamily: "var(--font-syne)", fontSize: 18, fontWeight: 700, color: "#ffe66d" }}
-                >
-                  −{fatLost}%
-                </div>
-              </div>
-              <div
-                style={{
-                  background: "#0d1117",
-                  borderRadius: 10,
-                  padding: 12,
-                  borderLeft: "3px solid #fd9644",
-                }}
-              >
-                <div
-                  style={{ fontSize: 10, color: "#7a8299", textTransform: "uppercase", letterSpacing: 1 }}
-                >
-                  Doses
-                </div>
-                <div
-                  style={{ fontFamily: "var(--font-syne)", fontSize: 18, fontWeight: 700, color: "#fd9644" }}
-                >
-                  {doseCount} ✓
-                </div>
-              </div>
-            </div>
-          </div>
-        </Link>
-
-        {/* Body Comp Chart */}
-        <div
-          style={{
-            gridColumn: "1 / -1",
-            background: "linear-gradient(135deg, #161c2d 0%, #1a2035 100%)",
-            border: "1px solid #2a3350",
-            borderRadius: 16,
-            padding: "20px 22px",
-          }}
-        >
+          {/* Action bar */}
           <div
             style={{
               display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 16,
-              flexWrap: "wrap",
-              gap: 12,
+              gap: 0,
+              margin: "0 -18px",
+              borderTop: "1px solid rgba(244,241,236,0.12)",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 3, height: 16, background: "#5b6ee1", borderRadius: 2 }} />
-              <span
-                style={{
-                  fontFamily: "var(--font-syne)",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#c0c8e0",
-                  letterSpacing: 1.2,
-                  textTransform: "uppercase",
-                }}
-              >
-                Body Composition · Weeks 1–4
-              </span>
-            </div>
-            <div style={{ display: "flex", gap: 12, fontSize: 11, color: "#7a8299" }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ display: "inline-block", width: 12, height: 2, background: "#4ecdc4" }} />
-                Weight
-              </span>
-              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ display: "inline-block", width: 12, height: 2, background: "#a29bfe" }} />
-                Muscle
-              </span>
-              <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ display: "inline-block", width: 12, height: 2, background: "#ffe66d" }} />
-                Body Fat
-              </span>
-            </div>
+            <Link
+              href="/dashboard/workout"
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "14px 18px",
+                background: "var(--color-accent)",
+                color: "#fff",
+                textDecoration: "none",
+                fontSize: 14,
+                fontWeight: 700,
+                gap: 6,
+              }}
+            >
+              ▸ Start Workout
+            </Link>
+            <Link
+              href="/dashboard/workout/builder"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "14px 20px",
+                background: "rgba(244,241,236,0.08)",
+                color: "rgba(244,241,236,0.65)",
+                textDecoration: "none",
+                fontSize: 13,
+                fontWeight: 500,
+                whiteSpace: "nowrap",
+                borderLeft: "1px solid rgba(244,241,236,0.12)",
+              }}
+            >
+              Customize →
+            </Link>
           </div>
-          <BodyCompChart
-            weight={bc.weeklyWeight}
-            muscle={bc.weeklyMuscle}
-            fat={bc.weeklyFat}
-            labels={["Start", "Wk 1", "Wk 2", "Wk 3", "Wk 4"]}
-          />
         </div>
 
-        {/* Recent Workouts — last 7 days from apple_health_workouts */}
+        {/* This week */}
+        <div
+          style={{
+            background: "var(--color-bg-raised)",
+            border: "1px solid var(--color-line)",
+            borderRadius: 14,
+            padding: "14px 16px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 500,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "var(--color-ink-3)",
+              marginBottom: 12,
+            }}
+          >
+            This week
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 4 }}>
+            {WEEK_DAYS.map((label, i) => {
+              const isActive = activeDays.has(i);
+              const isToday  = i === todayIdx;
+              return (
+                <div
+                  key={i}
+                  style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}
+                >
+                  <div
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 600,
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      color: isToday ? "var(--color-ink-2)" : "var(--color-ink-4)",
+                    }}
+                  >
+                    {label}
+                  </div>
+                  <div
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 8,
+                      background: isActive ? "var(--color-moss)" : isToday ? "var(--color-bg-sunk)" : "transparent",
+                      border: isToday && !isActive ? "1.5px solid var(--color-line-2)" : "1.5px solid transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "background 150ms",
+                    }}
+                  >
+                    {isActive && <span style={{ color: "#fff", fontSize: 12, lineHeight: 1 }}>✓</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Activity + Scores */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+          <ActivityCard
+            steps={steps}
+            activeEnergyCal={activeEnergyCal}
+            distanceMiles={distanceMiles}
+            heartRateBpm={heartRateBpm}
+          />
+          <div
+            style={{
+              background: "var(--color-bg-raised)",
+              border: "1px solid var(--color-line)",
+              borderRadius: 14,
+              padding: "16px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 500,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "var(--color-ink-3)",
+                marginBottom: 16,
+              }}
+            >
+              Today&apos;s Scores
+            </div>
+            <ScoreRings scores={SCORES} />
+          </div>
+        </div>
+
+        {/* Recent Workouts */}
         <RecentWorkoutsCard workouts={recentWorkouts} />
+
+        {/* Health chat */}
+        <div
+          style={{
+            background: "var(--color-bg-raised)",
+            border: "1px solid var(--color-line)",
+            borderRadius: 14,
+            padding: "16px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 500,
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              color: "var(--color-ink-3)",
+              marginBottom: 12,
+            }}
+          >
+            Health coach
+          </div>
+          <ChatWidget
+            systemContext={healthSystemContext}
+            placeholder="Ask about nutrition, recovery, fitness…"
+            welcomeMessage="Hi! Ask me anything about nutrition, workouts, recovery, or your health data."
+            compact
+          />
+        </div>
 
       </div>
     </div>

@@ -10,9 +10,10 @@ interface Props {
   onDone: () => void;
 }
 
-const syne = "var(--font-syne)";
-const mono = "var(--font-jetbrains-mono)";
-const dm = "var(--font-dm-sans)";
+const eyebrow: React.CSSProperties = {
+  fontSize: 9, fontWeight: 500, letterSpacing: "0.14em",
+  textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6,
+};
 
 function formatTime(sec: number) {
   const m = Math.floor(sec / 60);
@@ -23,20 +24,20 @@ function formatTime(sec: number) {
 export default function PostWorkoutSummary({ exercises, setLogs, sessionElapsed, onDone }: Props) {
   const [isPending, startTransition] = useTransition();
 
-  const allSets = setLogs.flat().filter((s): s is SetLog => s !== null);
+  const allSets     = setLogs.flat().filter((s): s is SetLog => s !== null);
   const totalVolume = allSets.reduce((sum, s) => sum + s.reps * s.weight, 0);
-  const totalReps = allSets.reduce((sum, s) => sum + s.reps, 0);
-  const avgRpe = allSets.length > 0
+  const totalReps   = allSets.reduce((sum, s) => sum + s.reps, 0);
+  const avgRpe      = allSets.length > 0
     ? (allSets.reduce((sum, s) => sum + s.rpe, 0) / allSets.length).toFixed(1)
     : "0";
   const estCalories = Math.round((sessionElapsed / 60) * 6.5);
 
   const breakdown = exercises.map((ex, i) => {
     const thisSets = (setLogs[i] ?? []).filter((s): s is SetLog => s !== null);
-    const thisVol = thisSets.reduce((sum, s) => sum + s.reps * s.weight, 0);
-    const lastVol = ex.lastSession.sets.reduce((sum, s) => sum + s.reps * s.weight, 0);
-    const isPR = thisVol > lastVol && thisSets.length > 0;
-    const topSet = thisSets.reduce<SetLog | null>(
+    const thisVol  = thisSets.reduce((sum, s) => sum + s.reps * s.weight, 0);
+    const lastVol  = ex.lastSession.sets.reduce((sum, s) => sum + s.reps * s.weight, 0);
+    const isPR     = thisVol > lastVol && thisSets.length > 0;
+    const topSet   = thisSets.reduce<SetLog | null>(
       (best, s) => (!best || s.weight * s.reps > best.weight * best.reps ? s : best),
       null
     );
@@ -55,193 +56,221 @@ export default function PostWorkoutSummary({ exercises, setLogs, sessionElapsed,
   const muscleGroups = [...new Set(exercises.flatMap((ex) => ex.muscles))];
 
   return (
-    <div style={{ fontFamily: dm, color: "#e8ecf8", minHeight: "100vh", padding: "20px 24px", maxWidth: 1100, margin: "0 auto" }}>
+    <div
+      style={{
+        fontFamily: "var(--font-sans)",
+        color: "var(--color-ink)",
+        padding: "20px 16px 32px",
+        maxWidth: 540,
+        margin: "0 auto",
+      }}
+    >
 
-      {/* ── Hero ──────────────────────────────────────────────────────────── */}
-      <div style={{
-        background: "linear-gradient(135deg, #1d2e3d 0%, #1a1b3a 100%)",
-        border: "1px solid #4ecdc450",
-        borderRadius: 20,
-        padding: "32px 28px",
-        textAlign: "center",
-        marginBottom: 16,
-        position: "relative",
-        overflow: "hidden",
-      }}>
-        <div style={{ position: "absolute", top: -20, right: -20, fontSize: 120, opacity: 0.05 }}>💪</div>
-        <div style={{ fontSize: 56, marginBottom: 8 }}>🎉</div>
-        <div style={{ fontFamily: syne, fontSize: 32, fontWeight: 800, letterSpacing: -0.5, marginBottom: 4 }}>
-          Workout Complete!
+      {/* ── Hero ───────────────────────────────────────────────────────────── */}
+      <div
+        style={{
+          background: "var(--color-ink)",
+          borderRadius: 16,
+          padding: "24px 20px",
+          textAlign: "center",
+          marginBottom: 14,
+        }}
+      >
+        <div style={{ ...eyebrow, color: "rgba(244,241,236,0.5)", marginBottom: 8 }}>
+          Workout complete
         </div>
-        <div style={{ fontSize: 13, color: "#9aa5c4", marginBottom: 24 }}>
-          Lower Body Power · {formatTime(sessionElapsed)}
-          {prCount > 0 && (
-            <span style={{ marginLeft: 12, color: "#4ecdc4", fontWeight: 700 }}>
-              🏆 {prCount} PR{prCount > 1 ? "s" : ""}!
-            </span>
-          )}
+        <div
+          style={{
+            fontFamily: "var(--font-display)",
+            fontSize: 30,
+            fontWeight: 400,
+            letterSpacing: "-0.02em",
+            lineHeight: 1,
+            color: "var(--color-bg)",
+            marginBottom: 6,
+          }}
+        >
+          Lower Body Power
         </div>
-
-        {/* Key stats */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, maxWidth: 700, margin: "0 auto" }}>
-          {[
-            { label: "Total Volume",  value: totalVolume.toLocaleString(), unit: "lbs",   color: "#4ecdc4" },
-            { label: "Total Reps",    value: totalReps,                    unit: "reps",  color: "#a29bfe" },
-            { label: "Avg RPE",       value: avgRpe,                       unit: "/ 10",  color: "#ffe66d" },
-            { label: "Est. Calories", value: estCalories,                  unit: "kcal",  color: "#fd9644" },
-          ].map(({ label, value, unit, color }) => (
-            <div key={label} style={{ background: "rgba(0,0,0,0.3)", borderRadius: 12, padding: "14px 10px" }}>
-              <div style={{ fontSize: 10, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
-              <div style={{ fontFamily: syne, fontSize: 22, fontWeight: 800, color }}>
-                {value} <span style={{ fontSize: 11, color: "#4a5568", fontWeight: 400 }}>{unit}</span>
-              </div>
-            </div>
-          ))}
+        <div style={{ fontSize: 14, color: "rgba(244,241,236,0.6)", marginBottom: prCount > 0 ? 6 : 0 }}>
+          {formatTime(sessionElapsed)}
         </div>
-
+        {prCount > 0 && (
+          <div style={{ fontSize: 13, color: "var(--color-moss)", fontWeight: 600 }}>
+            {prCount} PR{prCount > 1 ? "s" : ""} today 🎉
+          </div>
+        )}
         {volDeltaPct !== null && (
-          <div style={{ marginTop: 16, fontSize: 13, color: parseFloat(volDeltaPct) >= 0 ? "#4ecdc4" : "#ff6b6b" }}>
-            {parseFloat(volDeltaPct) >= 0 ? "↑" : "↓"} {Math.abs(parseFloat(volDeltaPct))}% volume vs last session
+          <div style={{ fontSize: 12, color: parseFloat(volDeltaPct) >= 0 ? "var(--color-moss)" : "var(--color-accent)", marginTop: 4 }}>
+            {parseFloat(volDeltaPct) >= 0 ? "↑" : "↓"}{Math.abs(parseFloat(volDeltaPct))}% volume vs last session
           </div>
         )}
       </div>
 
-      {/* ── Per-exercise breakdown ────────────────────────────────────────── */}
-      <div style={{ background: "linear-gradient(135deg, #161c2d 0%, #1a2035 100%)", border: "1px solid #2a3350", borderRadius: 16, padding: "20px 22px", marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-          <div style={{ width: 3, height: 16, background: "#a29bfe", borderRadius: 2 }} />
-          <span style={{ fontFamily: syne, fontSize: 13, fontWeight: 700, color: "#c0c8e0", letterSpacing: 1.2, textTransform: "uppercase" }}>
-            Exercise Breakdown
-          </span>
-        </div>
-        <div style={{ display: "grid", gap: 12 }}>
-          {breakdown.map((ex) => (
-            <div key={ex.name} style={{
-              background: "#0d1117",
+      {/* ── Stats 2×2 ──────────────────────────────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+        {[
+          { label: "Volume",   value: totalVolume.toLocaleString(), unit: "lbs"  },
+          { label: "Reps",     value: totalReps,                    unit: "total" },
+          { label: "Avg RPE",  value: avgRpe,                       unit: "/ 10" },
+          { label: "Calories", value: estCalories,                  unit: "kcal" },
+        ].map(({ label, value, unit }) => (
+          <div
+            key={label}
+            style={{
+              background: "var(--color-bg-raised)",
+              border: "1px solid var(--color-line)",
               borderRadius: 12,
-              padding: "14px 16px",
-              border: `1px solid ${ex.isPR ? "#4ecdc430" : "#1e2433"}`,
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <div>
-                  <div style={{ fontFamily: syne, fontSize: 14, fontWeight: 700 }}>
+              padding: "14px 14px",
+            }}
+          >
+            <div style={eyebrow}>{label}</div>
+            <div
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 22,
+                fontWeight: 400,
+                color: "var(--color-ink)",
+                lineHeight: 1,
+              }}
+            >
+              {value}
+            </div>
+            <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 2 }}>{unit}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Exercise breakdown ──────────────────────────────────────────────── */}
+      <div
+        style={{
+          background: "var(--color-bg-raised)",
+          border: "1px solid var(--color-line)",
+          borderRadius: 14,
+          padding: "16px",
+          marginBottom: 14,
+        }}
+      >
+        <div style={eyebrow}>Breakdown</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {breakdown.map((ex) => (
+            <div
+              key={ex.name}
+              style={{
+                background: "var(--color-bg-sunk)",
+                borderRadius: 10,
+                padding: "12px 14px",
+                border: `1px solid ${ex.isPR ? "var(--color-moss)" : "var(--color-line)"}`,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>
                     {ex.name}
-                    {ex.isPR && <span style={{ marginLeft: 8, fontSize: 11, color: "#4ecdc4", fontWeight: 700 }}>🏆 PR</span>}
-                  </div>
-                  <div style={{ fontSize: 11, color: "#7a8299", marginTop: 2 }}>
-                    {ex.muscles.join(", ")}
-                    {ex.topSet && (
-                      <span style={{ marginLeft: 8, color: "#9aa5c4", fontFamily: mono }}>
-                        Top set: {ex.topSet.weight}lb × {ex.topSet.reps}
-                      </span>
+                    {ex.isPR && (
+                      <span style={{ marginLeft: 6, fontSize: 10, color: "var(--color-moss)", fontWeight: 700 }}>PR</span>
                     )}
                   </div>
+                  {ex.topSet && (
+                    <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 1, fontFamily: "var(--font-mono)" }}>
+                      Top: {ex.topSet.weight}lb × {ex.topSet.reps}
+                    </div>
+                  )}
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontFamily: mono, fontSize: 16, fontWeight: 700, color: ex.isPR ? "#4ecdc4" : "#c0c8e0" }}>
-                    {ex.thisVol.toLocaleString()}
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 15, fontWeight: 700, color: ex.isPR ? "var(--color-moss)" : "var(--color-ink)" }}>
+                    {ex.thisVol > 0 ? ex.thisVol.toLocaleString() : "—"}
                   </div>
-                  <div style={{ fontSize: 10, color: "#4a5568" }}>lbs volume</div>
+                  <div style={{ fontSize: 9, color: "var(--color-ink-4)" }}>lbs vol</div>
                 </div>
               </div>
-              {/* Volume comparison bars */}
-              <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 10, marginBottom: 4 }}>
-                <span style={{ color: "#7a8299", width: 48 }}>Last:</span>
-                <div style={{ flex: 1, height: 6, background: "#1e2433", borderRadius: 3, overflow: "hidden" }}>
-                  <div style={{ width: `${(ex.lastVol / Math.max(ex.thisVol, ex.lastVol, 1)) * 100}%`, height: "100%", background: "#4a5568" }} />
-                </div>
-                <span style={{ color: "#7a8299", fontFamily: mono, width: 48, textAlign: "right" }}>{ex.lastVol}</span>
-              </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 10 }}>
-                <span style={{ color: ex.isPR ? "#4ecdc4" : "#9aa5c4", width: 48 }}>Today:</span>
-                <div style={{ flex: 1, height: 6, background: "#1e2433", borderRadius: 3, overflow: "hidden" }}>
-                  <div style={{ width: `${(ex.thisVol / Math.max(ex.thisVol, ex.lastVol, 1)) * 100}%`, height: "100%", background: ex.isPR ? "#4ecdc4" : "#a29bfe" }} />
-                </div>
-                <span style={{ color: ex.isPR ? "#4ecdc4" : "#c0c8e0", fontFamily: mono, width: 48, textAlign: "right", fontWeight: 700 }}>
-                  {ex.thisVol > 0 ? ex.thisVol : "—"}
-                </span>
+              {/* Volume bars */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {[
+                  { label: "Last",  vol: ex.lastVol,  color: "var(--color-ink-4)" },
+                  { label: "Today", vol: ex.thisVol,  color: ex.isPR ? "var(--color-moss)" : "var(--color-slate)" },
+                ].map(({ label, vol, color }) => (
+                  <div key={label} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 10 }}>
+                    <span style={{ color: "var(--color-ink-4)", width: 32, flexShrink: 0 }}>{label}</span>
+                    <div style={{ flex: 1, height: 4, background: "var(--color-line)", borderRadius: 2, overflow: "hidden" }}>
+                      <div
+                        style={{
+                          width: `${(vol / Math.max(ex.thisVol, ex.lastVol, 1)) * 100}%`,
+                          height: "100%",
+                          background: color,
+                          borderRadius: 2,
+                        }}
+                      />
+                    </div>
+                    <span style={{ fontFamily: "var(--font-mono)", color: "var(--color-ink-3)", width: 36, textAlign: "right", flexShrink: 0 }}>
+                      {vol || "—"}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── Recovery prescription ──────────────────────────────────────────── */}
-      <div style={{
-        background: "linear-gradient(135deg, #1a1b3a 0%, #1a2035 100%)",
-        border: "1px solid #5b6ee150",
-        borderRadius: 16,
-        padding: "20px 22px",
-        marginBottom: 16,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <div style={{ width: 3, height: 16, background: "#5b6ee1", borderRadius: 2 }} />
-          <span style={{ fontFamily: syne, fontSize: 13, fontWeight: 700, color: "#c0c8e0", letterSpacing: 1.2, textTransform: "uppercase" }}>
-            🔋 Recovery Prescription
-          </span>
+      {/* ── Recovery ───────────────────────────────────────────────────────── */}
+      <div
+        style={{
+          background: "var(--color-bg-raised)",
+          border: "1px solid var(--color-line)",
+          borderRadius: 14,
+          padding: "16px",
+          marginBottom: 20,
+        }}
+      >
+        <div style={eyebrow}>Recovery</div>
+        <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginBottom: 12, lineHeight: 1.5 }}>
+          You just stressed {muscleGroups.slice(0, 4).join(", ")}. Prioritize the items below in the next 24h.
         </div>
-        <div style={{ fontSize: 12, color: "#9aa5c4", marginBottom: 14, lineHeight: 1.5 }}>
-          You just stressed {muscleGroups.slice(0, 4).join(", ")}. Muscle protein synthesis stays elevated for ~48hrs.
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {[
-            { icon: "🥩", label: "Protein", val: "165g today",  note: "~40g in next 90 min",    color: "#a29bfe", priority: true },
-            { icon: "💧", label: "Hydrate", val: "+24oz",        note: "Within 1hr post",         color: "#4ecdc4" },
-            { icon: "🔥", label: "Sauna",   val: "25 min",       note: "Tonight or tomorrow",     color: "#fd9644" },
-            { icon: "😴", label: "Sleep",   val: "8+ hours",     note: "Critical for recovery",   color: "#ffe66d" },
+            { icon: "🥩", label: "Protein",  val: "165g today",  note: "~40g in next 90 min", priority: true  },
+            { icon: "💧", label: "Hydrate",  val: "+24oz",        note: "Within 1hr post"                     },
+            { icon: "🔥", label: "Sauna",    val: "25 min",       note: "Tonight or tomorrow"                  },
+            { icon: "😴", label: "Sleep",    val: "8+ hours",     note: "Critical for recovery"                },
           ].map((r) => (
-            <div key={r.label} style={{
-              background: "#0d1117",
-              borderRadius: 10,
-              padding: 12,
-              border: r.priority ? `1px solid ${r.color}50` : "1px solid #1e2640",
-            }}>
+            <div
+              key={r.label}
+              style={{
+                background: "var(--color-bg-sunk)",
+                borderRadius: 10,
+                padding: "12px",
+                border: r.priority ? "1px solid var(--color-accent)" : "1px solid var(--color-line)",
+              }}
+            >
               <div style={{ fontSize: 22, marginBottom: 4 }}>{r.icon}</div>
-              <div style={{ fontSize: 10, color: "#7a8299", letterSpacing: 1, textTransform: "uppercase" }}>{r.label}</div>
-              <div style={{ fontFamily: syne, fontSize: 14, fontWeight: 700, color: r.color, marginTop: 2 }}>{r.val}</div>
-              <div style={{ fontSize: 10, color: "#7a8299", marginTop: 2 }}>{r.note}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink)", marginBottom: 1 }}>{r.val}</div>
+              <div style={{ fontSize: 10, color: "var(--color-ink-4)", lineHeight: 1.4 }}>{r.note}</div>
             </div>
           ))}
         </div>
-        <div style={{
-          marginTop: 14, padding: 12,
-          background: "rgba(91,110,225,0.1)", border: "1px solid #5b6ee140",
-          borderRadius: 10, fontSize: 12, color: "#c0c8e0", lineHeight: 1.5,
-        }}>
-          <span style={{ color: "#a29bfe", fontWeight: 600 }}>💉 Zepbound note:</span> GLP-1s suppress appetite, but protein is non-negotiable today. Aim for ~40g in the next 90 min.
-        </div>
       </div>
 
-      {/* ── Actions ───────────────────────────────────────────────────────── */}
-      <div style={{ display: "flex", gap: 10, justifyContent: "center", paddingBottom: 32 }}>
-        <button style={{
-          padding: "12px 20px", borderRadius: 10, border: "1px solid #2a3350",
-          background: "transparent", color: "#9aa5c4", fontFamily: syne,
-          fontSize: 13, fontWeight: 600, cursor: "pointer",
-        }}>
-          📤 Share Workout
-        </button>
-        <button style={{
-          padding: "12px 20px", borderRadius: 10, border: "1px solid #2a3350",
-          background: "transparent", color: "#9aa5c4", fontFamily: syne,
-          fontSize: 13, fontWeight: 600, cursor: "pointer",
-        }}>
-          📝 Add Note
-        </button>
-        <button
-          onClick={() => startTransition(() => { onDone(); })}
-          disabled={isPending}
-          style={{
-            padding: "12px 28px", borderRadius: 10, border: "none",
-            background: isPending ? "#2a3350" : "linear-gradient(135deg, #4ecdc4 0%, #a29bfe 100%)",
-            color: isPending ? "#7a8299" : "#0d1117",
-            fontFamily: syne, fontSize: 14, fontWeight: 800, letterSpacing: 0.5, cursor: isPending ? "not-allowed" : "pointer",
-            boxShadow: isPending ? "none" : "0 4px 16px rgba(78,205,196,0.3)",
-          }}
-        >
-          {isPending ? "Saving…" : "✓ Save & Return Home"}
-        </button>
-      </div>
+      {/* ── Done button ────────────────────────────────────────────────────── */}
+      <button
+        onClick={() => startTransition(() => { onDone(); })}
+        disabled={isPending}
+        style={{
+          width: "100%",
+          padding: "16px",
+          borderRadius: 12,
+          border: "none",
+          background: isPending ? "var(--color-bg-sunk)" : "var(--color-ink)",
+          color: isPending ? "var(--color-ink-3)" : "var(--color-bg)",
+          fontFamily: "inherit",
+          fontSize: 15,
+          fontWeight: 700,
+          cursor: isPending ? "not-allowed" : "pointer",
+        }}
+      >
+        {isPending ? "Saving…" : "Save & go home"}
+      </button>
+
     </div>
   );
 }

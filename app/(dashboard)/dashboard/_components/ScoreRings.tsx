@@ -35,7 +35,14 @@ function Ring({
 
   return (
     <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#1e2433" strokeWidth={stroke} />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        style={{ stroke: "var(--color-line)" }}
+        strokeWidth={stroke}
+      />
       <circle
         cx={size / 2}
         cy={size / 2}
@@ -77,10 +84,10 @@ export default function ScoreRings({ scores }: { scores: Score[] }) {
           <Ring value={s.value} max={100} size={70} stroke={6} color={s.color}>
             <span
               style={{
-                fontFamily: "var(--font-syne)",
-                fontSize: 16,
-                fontWeight: 700,
-                color: "#fff",
+                fontFamily: "var(--font-display)",
+                fontSize: 17,
+                fontWeight: 400,
+                color: "var(--color-ink)",
               }}
             >
               {s.value}
@@ -89,9 +96,9 @@ export default function ScoreRings({ scores }: { scores: Score[] }) {
           <span
             style={{
               fontSize: 10,
-              color: "#7a8299",
-              fontWeight: 600,
-              letterSpacing: 1,
+              color: "var(--color-ink-3)",
+              fontWeight: 500,
+              letterSpacing: "0.1em",
               textTransform: "uppercase",
             }}
           >

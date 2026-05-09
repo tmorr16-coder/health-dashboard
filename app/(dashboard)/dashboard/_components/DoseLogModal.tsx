@@ -25,20 +25,21 @@ const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
   borderRadius: 8,
-  border: "1px solid #2a3350",
-  background: "#0d1117",
-  color: "#e8ecf8",
+  border: "1px solid var(--color-line)",
+  background: "var(--color-bg-sunk)",
+  color: "var(--color-ink)",
   fontSize: 13,
   outline: "none",
-  colorScheme: "dark",
+  fontFamily: "inherit",
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  color: "#7a8299",
+  fontSize: 10,
+  color: "var(--color-ink-3)",
   marginBottom: 6,
   textTransform: "uppercase",
-  letterSpacing: 1,
+  letterSpacing: "0.1em",
+  fontWeight: 500,
 };
 
 export default function DoseLogModal({
@@ -51,7 +52,7 @@ export default function DoseLogModal({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const todayStr = new Date().toLocaleDateString("sv"); // "YYYY-MM-DD" in local TZ
+  const todayStr = new Date().toLocaleDateString("sv");
 
   const [date, setDate] = useState(todayStr);
   const [doseMg, setDoseMg] = useState(String(defaultDoseMg));
@@ -84,22 +85,22 @@ export default function DoseLogModal({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.8)",
+        background: "rgba(22,20,15,0.55)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         zIndex: 100,
         padding: 20,
-        backdropFilter: "blur(8px)",
+        backdropFilter: "blur(6px)",
       }}
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "linear-gradient(135deg, #161c2d 0%, #1a2035 100%)",
-          border: "1px solid #5b6ee150",
-          borderRadius: 20,
+          background: "var(--color-bg-raised)",
+          border: "1px solid var(--color-line)",
+          borderRadius: 16,
           padding: 28,
           width: "100%",
           maxWidth: 440,
@@ -109,11 +110,19 @@ export default function DoseLogModal({
       >
         {/* Title */}
         <div style={{ textAlign: "center", marginBottom: 24 }}>
-          <div style={{ fontSize: 48, marginBottom: 8 }}>💉</div>
-          <div style={{ fontFamily: "var(--font-syne)", fontSize: 22, fontWeight: 800 }}>
+          <div style={{ fontSize: 44, marginBottom: 8 }}>💉</div>
+          <div
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: 24,
+              fontWeight: 400,
+              letterSpacing: "-0.01em",
+              color: "var(--color-ink)",
+            }}
+          >
             Log Zepbound Dose
           </div>
-          <div style={{ fontSize: 13, color: "#7a8299", marginTop: 4 }}>
+          <div style={{ fontSize: 13, color: "var(--color-ink-3)", marginTop: 4 }}>
             Week {weekNumber} · {defaultDoseMg} mg
           </div>
         </div>
@@ -155,14 +164,14 @@ export default function DoseLogModal({
                 style={{
                   padding: "10px",
                   borderRadius: 8,
-                  border: `1px solid ${site === s ? "#5b6ee1" : "#2a3350"}`,
-                  background: site === s ? "rgba(91,110,225,0.15)" : "#0d1117",
-                  color: site === s ? "#a29bfe" : "#9aa5c4",
+                  border: `1px solid ${site === s ? "var(--color-accent)" : "var(--color-line)"}`,
+                  background: site === s ? "var(--color-accent-soft)" : "var(--color-bg-sunk)",
+                  color: site === s ? "var(--color-accent)" : "var(--color-ink-2)",
                   fontSize: 12,
-                  fontWeight: 600,
+                  fontWeight: site === s ? 600 : 400,
                   cursor: "pointer",
                   textAlign: "left",
-                  fontFamily: "var(--font-dm-sans)",
+                  fontFamily: "inherit",
                 }}
               >
                 {s}
@@ -183,7 +192,6 @@ export default function DoseLogModal({
             style={{
               ...inputStyle,
               resize: "vertical",
-              fontFamily: "var(--font-dm-sans)",
               lineHeight: 1.5,
             }}
           />
@@ -191,7 +199,7 @@ export default function DoseLogModal({
 
         {error && (
           <div
-            style={{ color: "#ff6b6b", fontSize: 12, marginBottom: 12, textAlign: "center" }}
+            style={{ color: "var(--color-accent)", fontSize: 12, marginBottom: 12, textAlign: "center" }}
           >
             {error}
           </div>
@@ -207,13 +215,13 @@ export default function DoseLogModal({
               flex: 1,
               padding: "12px",
               borderRadius: 10,
-              border: "1px solid #2a3350",
+              border: "1px solid var(--color-line)",
               background: "transparent",
-              color: "#9aa5c4",
-              fontFamily: "var(--font-syne)",
+              color: "var(--color-ink-3)",
               fontSize: 13,
-              fontWeight: 600,
+              fontWeight: 500,
               cursor: "pointer",
+              fontFamily: "inherit",
             }}
           >
             Cancel
@@ -227,14 +235,12 @@ export default function DoseLogModal({
               padding: "12px",
               borderRadius: 10,
               border: "none",
-              background: isPending
-                ? "#2a3350"
-                : "linear-gradient(135deg, #5b6ee1 0%, #a29bfe 100%)",
-              color: isPending ? "#7a8299" : "#fff",
-              fontFamily: "var(--font-syne)",
+              background: isPending ? "var(--color-bg-sunk)" : "var(--color-ink)",
+              color: isPending ? "var(--color-ink-4)" : "var(--color-bg)",
               fontSize: 13,
-              fontWeight: 700,
+              fontWeight: 600,
               cursor: isPending ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
             }}
           >
             {isPending ? "Saving…" : "✓ Confirm"}

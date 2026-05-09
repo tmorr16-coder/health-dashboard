@@ -5,6 +5,11 @@ interface BodyCompChartProps {
   labels: string[];
 }
 
+// Token hex values used directly in SVG attributes (CSS vars don't work there)
+const C_SLATE = "#2f3a47";
+const C_MOSS  = "#4a6a4d";
+const C_ACCENT = "#b84a2e";
+
 export default function BodyCompChart({ weight, muscle, fat, labels }: BodyCompChartProps) {
   const height = 160;
   const width = 100;
@@ -33,31 +38,31 @@ export default function BodyCompChart({ weight, muscle, fat, labels }: BodyCompC
         <polyline
           points={toPath(wY)}
           fill="none"
-          stroke="#4ecdc4"
-          strokeWidth="1.2"
+          stroke={C_SLATE}
+          strokeWidth="1.5"
           strokeLinecap="round"
         />
         <polyline
           points={toPath(mY)}
           fill="none"
-          stroke="#a29bfe"
-          strokeWidth="1.2"
+          stroke={C_MOSS}
+          strokeWidth="1.5"
           strokeLinecap="round"
           strokeDasharray="2,2"
         />
         <polyline
           points={toPath(fY)}
           fill="none"
-          stroke="#ffe66d"
-          strokeWidth="1.2"
+          stroke={C_ACCENT}
+          strokeWidth="1.5"
           strokeLinecap="round"
           strokeDasharray="3,2"
         />
         {wY.map((y, i) => (
-          <circle key={`w${i}`} cx={i * xStep} cy={y} r="1.4" fill="#4ecdc4" />
+          <circle key={`w${i}`} cx={i * xStep} cy={y} r="1.5" fill={C_SLATE} />
         ))}
         {mY.map((y, i) => (
-          <circle key={`m${i}`} cx={i * xStep} cy={y} r="1.4" fill="#a29bfe" />
+          <circle key={`m${i}`} cx={i * xStep} cy={y} r="1.5" fill={C_MOSS} />
         ))}
       </svg>
       <div
@@ -69,7 +74,7 @@ export default function BodyCompChart({ weight, muscle, fat, labels }: BodyCompC
         }}
       >
         {labels.map((l, i) => (
-          <span key={i} style={{ fontSize: 10, color: "#4a5568" }}>
+          <span key={i} style={{ fontSize: 10, color: "var(--color-ink-4)" }}>
             {l}
           </span>
         ))}
