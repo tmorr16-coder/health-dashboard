@@ -305,25 +305,29 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
         {/* Session control menu */}
         {showMenu && (
           <div style={{ borderTop: "1px solid var(--color-line)", background: "var(--color-bg-raised)", padding: "10px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
-            {/* Pause / Resume */}
-            <button
-              onClick={() => { setPaused((v) => !v); setShowMenu(false); }}
-              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--color-line)", background: "var(--color-bg-sunk)", color: "var(--color-ink)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
-            >
-              <span style={{ fontSize: 16 }}>{paused ? "▶" : "⏸"}</span>
-              {paused ? "Resume session" : "Pause session"}
-            </button>
+            {/* Pause / Resume — only once workout is active */}
+            {completedSets > 0 && (
+              <button
+                onClick={() => { setPaused((v) => !v); setShowMenu(false); }}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--color-line)", background: "var(--color-bg-sunk)", color: "var(--color-ink)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+              >
+                <span style={{ fontSize: 16 }}>{paused ? "▶" : "⏸"}</span>
+                {paused ? "Resume session" : "Pause session"}
+              </button>
+            )}
 
-            {/* Stop early (go to summary) */}
-            <button
-              onClick={() => { setShowMenu(false); handleFinish(); }}
-              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--color-line)", background: "var(--color-bg-sunk)", color: "var(--color-ink)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
-            >
-              <span style={{ fontSize: 16 }}>■</span>
-              Stop &amp; save session
-            </button>
+            {/* Stop early — only once workout is active */}
+            {completedSets > 0 && (
+              <button
+                onClick={() => { setShowMenu(false); handleFinish(); }}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--color-line)", background: "var(--color-bg-sunk)", color: "var(--color-ink)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+              >
+                <span style={{ fontSize: 16 }}>■</span>
+                Stop &amp; save session
+              </button>
+            )}
 
-            {/* Delete */}
+            {/* Delete — always available so you can bail before logging anything */}
             {!confirmDelete ? (
               <button
                 onClick={() => setConfirmDelete(true)}
