@@ -23,12 +23,13 @@ export async function disconnectWithings(): Promise<{ error?: string }> {
 export async function triggerSync(): Promise<{ inserted?: number; error?: string }> {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL!;
   const cronSecret = process.env.CRON_SECRET;
+  const userId = await getCurrentUserId();
 
   const headers: Record<string, string> = {};
   if (cronSecret) headers["Authorization"] = `Bearer ${cronSecret}`;
 
   try {
-    const res = await fetch(`${siteUrl}/api/withings/sync`, { headers });
+    const res = await fetch(`${siteUrl}/api/withings/sync?userId=${encodeURIComponent(userId)}`, { headers });
     const json = (await res.json()) as { measurements_inserted?: number; error?: string };
     if (!res.ok) return { error: json.error ?? "Sync failed" };
     return { inserted: json.measurements_inserted ?? 0 };
