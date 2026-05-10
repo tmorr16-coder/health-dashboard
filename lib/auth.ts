@@ -17,3 +17,18 @@ export async function getCurrentUserId(): Promise<string> {
   } catch { /* ignore */ }
   return DEV_USER_ID;
 }
+
+export async function getCurrentUserName(): Promise<string | null> {
+  if (process.env.NEXT_PUBLIC_AUTH_BYPASS === "true") {
+    return null;
+  }
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const meta = user.user_metadata ?? {};
+      return meta.full_name ?? meta.name ?? user.email?.split("@")[0] ?? null;
+    }
+  } catch { /* ignore */ }
+  return null;
+}

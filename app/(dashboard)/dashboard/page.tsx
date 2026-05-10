@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentUserId } from "@/lib/auth";
+import { getCurrentUserId, getCurrentUserName } from "@/lib/auth";
 import ScoreRings from "./_components/ScoreRings";
 import ActivityCard from "./_components/ActivityCard";
 import RecentWorkoutsCard, { type WorkoutRow } from "./_components/RecentWorkoutsCard";
@@ -70,7 +70,7 @@ function getMondayOf(d: Date): Date {
 export default async function DashboardPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const userId = await getCurrentUserId();
+  const [userId, userName] = await Promise.all([getCurrentUserId(), getCurrentUserName()]);
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -286,7 +286,7 @@ export default async function DashboardPage() {
           }}
         >
           {greeting},<br />
-          <span style={{ color: "var(--color-accent)" }}>Terry.</span>
+          <span style={{ color: "var(--color-accent)" }}>{userName ?? "there"}.</span>
         </div>
 
         {/* Per-source sync status */}
