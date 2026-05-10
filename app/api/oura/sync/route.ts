@@ -134,17 +134,18 @@ export async function GET(request: NextRequest) {
   const specificUserId = searchParams.get("userId");
 
   // Try per-user tokens from DB first
-  const tokenQuery = db.from("oura_tokens").select("user_id, access_token");
-  if (specificUserId) tokenQuery.eq("user_id", specificUserId);
-  const { data: tokenRows } = await tokenQuery;
-
-  // Fall back to env var token for DEV_USER_ID (backward compat)
   type OuraTokenRow = { user_id: string; access_token: string };
+  const baseQuery = db.from("oura_tokens").select("user_id, access_token");
+  const { data: tokenRows } = specificUserId
+    ? await baseQuery.eq("user_id", specificUserId)
+    : await baseQuery;
+
   let usersToSync: OuraTokenRow[] = (tokenRows as OuraTokenRow[] | null) ?? [];
 
+  // Fall back to env var token — write data to the requesting user's account
   const envToken = process.env.OURA_ACCESS_TOKEN;
-  if (envToken && usersToSync.length === 0 && (!specificUserId || specificUserId === DEV_USER_ID)) {
-    usersToSync = [{ user_id: DEV_USER_ID, access_token: envToken }];
+  if (envToken && usersToSync.length === 0) {
+    usersToSync = [{ user_id: specificUserId ?? DEV_USER_ID, access_token: envToken }];
   }
 
   if (usersToSync.length === 0) {
