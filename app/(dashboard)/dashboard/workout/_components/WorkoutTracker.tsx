@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { EXERCISE_LIBRARY, suggestNext, type SetLog } from "../exercise-library";
-import { createWorkoutSession, saveSet, finishSession, saveCardioBlocks, type CardioBlock } from "../actions";
+import { createWorkoutSession, saveSet, finishSession, saveCardioBlocks, deleteSession, type CardioBlock } from "../actions";
 import PostWorkoutSummary from "./PostWorkoutSummary";
 
 // ── style tokens ──────────────────────────────────────────────────────────────
@@ -61,6 +61,11 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   const [showCues,     setShowCues]     = useState(false);
   const [showPrevious, setShowPrevious] = useState(false);
 
+  // Session controls
+  const [paused,         setPaused]         = useState(false);
+  const [showMenu,       setShowMenu]       = useState(false);
+  const [confirmDelete,  setConfirmDelete]  = useState(false);
+
   // Stretching + cardio extras
   const [warmup,         setWarmup]         = useState(initialWarmup   ?? false);
   const [cooldown,       setCooldown]       = useState(initialCooldown ?? false);
@@ -85,9 +90,10 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   }, []);
 
   useEffect(() => {
+    if (paused) return;
     const id = setInterval(() => setSessionElapsed(Math.floor((Date.now() - sessionStart) / 1000)), 1000);
     return () => clearInterval(id);
-  }, [sessionStart]);
+  }, [sessionStart, paused]);
 
   useEffect(() => {
     if (restRemaining <= 0) return;
@@ -183,6 +189,13 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
     setShowCardioForm(false);
   };
 
+  const handleDelete = () => {
+    startTransition(async () => {
+      if (session) await deleteSession(session.id);
+      router.push("/dashboard");
+    });
+  };
+
   const jumpToExercise = (i: number) => {
     setCurrentExIdx(i);
     const next = setLogs[i].findIndex((s) => s === null);
@@ -242,60 +255,101 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
           zIndex: 40,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px" }}>
           {/* Session label + volume */}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", lineHeight: 1 }}>
-              Lower Body Power
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", lineHeight: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {paused ? "⏸ Paused" : "Active session"}
             </div>
             {totalVolume > 0 && (
               <div style={{ fontSize: 11, color: "var(--color-moss)", marginTop: 2 }}>
-                {totalVolume.toLocaleString()} lbs
+                {totalVolume.toLocaleString()} lbs · {completedSets}/{totalSets} sets
               </div>
             )}
           </div>
 
           {/* Timer */}
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700, color: "var(--color-moss)", flexShrink: 0 }}>
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 700, color: paused ? "var(--color-ink-3)" : "var(--color-moss)", flexShrink: 0 }}>
             {formatTime(sessionElapsed)}
           </div>
 
-          {/* Sets progress */}
-          <div
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 13,
-              color: "var(--color-ink-3)",
-              flexShrink: 0,
-              background: "var(--color-bg-sunk)",
-              padding: "4px 8px",
-              borderRadius: 6,
-            }}
-          >
-            {completedSets}/{totalSets}
-          </div>
-
-          {/* Finish button */}
-          {completedSets > 0 && (
+          {/* Finish (when all sets done) */}
+          {allSetsDone && (
             <button
               onClick={handleFinish}
               style={{
-                padding: "7px 12px",
-                borderRadius: 8,
-                border: allSetsDone ? "none" : "1px solid var(--color-line)",
-                background: allSetsDone ? "var(--color-moss)" : "var(--color-bg-raised)",
-                color: allSetsDone ? "#fff" : "var(--color-ink-3)",
-                fontFamily: "inherit",
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: "pointer",
-                flexShrink: 0,
+                padding: "7px 12px", borderRadius: 8, border: "none",
+                background: "var(--color-moss)", color: "#fff",
+                fontFamily: "inherit", fontSize: 12, fontWeight: 600,
+                cursor: "pointer", flexShrink: 0,
               }}
             >
-              {allSetsDone ? "✓ Done" : "Finish"}
+              ✓ Done
             </button>
           )}
+
+          {/* Session menu button */}
+          <button
+            onClick={() => { setShowMenu((v) => !v); setConfirmDelete(false); }}
+            style={{
+              width: 34, height: 34, borderRadius: 8, border: "1px solid var(--color-line)",
+              background: showMenu ? "var(--color-bg-sunk)" : "var(--color-bg-raised)",
+              color: "var(--color-ink-3)", fontSize: 18, cursor: "pointer",
+              fontFamily: "inherit", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+          >
+            ⋯
+          </button>
         </div>
+
+        {/* Session control menu */}
+        {showMenu && (
+          <div style={{ borderTop: "1px solid var(--color-line)", background: "var(--color-bg-raised)", padding: "10px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+            {/* Pause / Resume */}
+            <button
+              onClick={() => { setPaused((v) => !v); setShowMenu(false); }}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--color-line)", background: "var(--color-bg-sunk)", color: "var(--color-ink)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+            >
+              <span style={{ fontSize: 16 }}>{paused ? "▶" : "⏸"}</span>
+              {paused ? "Resume session" : "Pause session"}
+            </button>
+
+            {/* Stop early (go to summary) */}
+            <button
+              onClick={() => { setShowMenu(false); handleFinish(); }}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--color-line)", background: "var(--color-bg-sunk)", color: "var(--color-ink)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+            >
+              <span style={{ fontSize: 16 }}>■</span>
+              Stop &amp; save session
+            </button>
+
+            {/* Delete */}
+            {!confirmDelete ? (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--color-line)", background: "var(--color-bg-sunk)", color: "var(--color-accent)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+              >
+                <span style={{ fontSize: 16 }}>🗑</span>
+                Delete session
+              </button>
+            ) : (
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={handleDelete}
+                  style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: "none", background: "var(--color-accent)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Yes, delete
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--color-line)", background: "var(--color-bg-sunk)", color: "var(--color-ink-3)", fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Progress bar */}
         <div style={{ height: 3, background: "var(--color-bg-sunk)", overflow: "hidden" }}>
@@ -464,13 +518,13 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
 
                   {/* Log or placeholder */}
                   {isDone ? (
-                    <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: "var(--color-ink)" }}>
+                    <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: "var(--color-ink)", flexShrink: 0 }}>
                         {log!.reps} × {log!.weight}lb
                       </span>
-                      <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>@ {log!.rpe}</span>
+                      <span style={{ fontSize: 11, color: "var(--color-ink-4)", flexShrink: 0 }}>@ {log!.rpe}</span>
                       {isPR && (
-                        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--color-moss)", marginLeft: 2 }}>↑ PR</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--color-moss)", flexShrink: 0 }}>↑ PR</span>
                       )}
                     </div>
                   ) : (
@@ -517,7 +571,7 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
                   onPlus:  () => setInputReps((r) => String(parseInt(r || "0") + 1)),
                 },
                 {
-                  label: "Weight (lbs)",
+                  label: "Weight (lb)",
                   value: inputWeight,
                   onChange: setInputWeight,
                   step: 5,

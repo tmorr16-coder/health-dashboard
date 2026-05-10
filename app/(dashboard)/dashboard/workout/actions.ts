@@ -108,6 +108,27 @@ export interface CardioBlock {
   distanceMiles?: number;
 }
 
+export async function deleteSession(
+  sessionId: string
+): Promise<{ error?: string }> {
+  if (!sessionId) return {};
+  const db: AnyClient = createAdminClient();
+  const userId = await getCurrentUserId();
+
+  // Delete child records first, then the session itself
+  const exerciseQuery = await db.from("exercises").select("id").eq("session_id", sessionId).eq("user_id", userId);
+  const exerciseIds: string[] = (exerciseQuery.data ?? []).map((e: { id: string }) => e.id);
+  if (exerciseIds.length) {
+    await db.from("sets").delete().in("exercise_id", exerciseIds);
+    await db.from("exercises").delete().in("id", exerciseIds);
+  }
+  const { error } = await db.from("workout_sessions").delete().eq("id", sessionId).eq("user_id", userId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/dashboard");
+  return {};
+}
+
 export async function saveCardioBlocks(
   blocks: CardioBlock[]
 ): Promise<{ error?: string }> {
