@@ -9,6 +9,7 @@ export default function Greeting({ name }: { name: string | null }) {
 
   return (
     <div
+      suppressHydrationWarning
       style={{
         fontFamily: "var(--font-display)",
         fontSize: 34,
@@ -17,7 +18,7 @@ export default function Greeting({ name }: { name: string | null }) {
         lineHeight: 1.1,
       }}
     >
-      {salutation},<br />
+      <span suppressHydrationWarning>{salutation}</span>,<br />
       <span style={{ color: "var(--color-accent)" }}>{name ?? "there"}.</span>
     </div>
   );
