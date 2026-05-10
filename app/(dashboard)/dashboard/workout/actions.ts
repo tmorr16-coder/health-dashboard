@@ -129,6 +129,47 @@ export async function deleteSession(
   return {};
 }
 
+export async function scheduleWorkout(data: {
+  label: string;
+  scheduledDate: string;
+  scheduledTime: string;
+  planEncoded: string;
+  reminderMin: number;
+}): Promise<{ error?: string; id?: string }> {
+  const db: AnyClient = createAdminClient();
+  const userId = await getCurrentUserId();
+  const { data: row, error } = await db
+    .from("scheduled_workouts")
+    .insert({
+      user_id: userId,
+      label: data.label || "Workout",
+      scheduled_date: data.scheduledDate,
+      scheduled_time: data.scheduledTime,
+      plan_encoded: data.planEncoded,
+      reminder_min: data.reminderMin,
+    })
+    .select("id")
+    .single();
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/train");
+  return { id: row.id };
+}
+
+export async function deleteScheduledWorkout(
+  id: string
+): Promise<{ error?: string }> {
+  const db: AnyClient = createAdminClient();
+  const userId = await getCurrentUserId();
+  const { error } = await db
+    .from("scheduled_workouts")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", userId);
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/train");
+  return {};
+}
+
 export async function saveCardioBlocks(
   blocks: CardioBlock[]
 ): Promise<{ error?: string }> {

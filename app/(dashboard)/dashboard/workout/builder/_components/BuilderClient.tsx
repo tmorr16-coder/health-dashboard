@@ -7,6 +7,7 @@ import {
   buildPlan, applyLevel, estimateDuration, LEVELS,
   type PlannedExercise, type Difficulty,
 } from '../../_lib/build-plan';
+import { scheduleWorkout } from '../../actions';
 
 // ── Shared CSS-variable helpers ───────────────────────────────────────────────
 
@@ -120,6 +121,16 @@ export default function BuilderClient() {
   const [difficulty, setDifficulty] = useState<Difficulty>('intermediate');
   const [editedPlan, setEditedPlan] = useState<PlannedExercise[] | null>(null);
 
+  // Scheduling
+  const [showSchedule, setShowSchedule]     = useState(false);
+  const [schedLabel,   setSchedLabel]       = useState('');
+  const [schedDate,    setSchedDate]        = useState('');
+  const [schedTime,    setSchedTime]        = useState('09:00');
+  const [schedReminder, setSchedReminder]   = useState(30);
+  const [schedSaving,  setSchedSaving]      = useState(false);
+  const [schedSaved,   setSchedSaved]       = useState(false);
+  const [schedError,   setSchedError]       = useState<string | null>(null);
+
   // Cardio + stretching
   const [stretchBefore, setStretchBefore] = useState(false);
   const [stretchAfter,  setStretchAfter]  = useState(false);
@@ -155,22 +166,42 @@ export default function BuilderClient() {
   const removeExercise = (i: number) =>
     setEditedPlan((prev) => prev!.filter((_, idx) => idx !== i));
 
+  const buildEncoded = () => {
+    const exercises = plan.map((ex) => ({
+      name: ex.name, sets: ex.sets, reps: ex.reps, primary: ex.primary,
+    }));
+    const payload: Record<string, unknown> = { exercises };
+    if (stretchBefore) payload.warmup   = true;
+    if (stretchAfter)  payload.cooldown = true;
+    if (addCardio && cardioDuration) {
+      const cardio: Record<string, unknown> = { type: cardioType, durationMin: parseInt(cardioDuration, 10) };
+      if (cardioDistance && cardioType !== 'Other') cardio.distanceMiles = parseFloat(cardioDistance);
+      payload.cardio = cardio;
+    }
+    return btoa(JSON.stringify(payload));
+  };
+
   const handleStart = () => {
     startTransition(() => {
-      const exercises = plan.map((ex) => ({
-        name: ex.name, sets: ex.sets, reps: ex.reps, primary: ex.primary,
-      }));
-      const payload: Record<string, unknown> = { exercises };
-      if (stretchBefore) payload.warmup  = true;
-      if (stretchAfter)  payload.cooldown = true;
-      if (addCardio && cardioDuration) {
-        const cardio: Record<string, unknown> = { type: cardioType, durationMin: parseInt(cardioDuration, 10) };
-        if (cardioDistance && cardioType !== 'Other') cardio.distanceMiles = parseFloat(cardioDistance);
-        payload.cardio = cardio;
-      }
-      const encoded = btoa(JSON.stringify(payload));
-      router.push(`/dashboard/workout?plan=${encoded}`);
+      router.push(`/dashboard/workout?plan=${buildEncoded()}`);
     });
+  };
+
+  const handleSchedule = async () => {
+    if (!schedDate) return;
+    setSchedSaving(true);
+    setSchedError(null);
+    const result = await scheduleWorkout({
+      label:        schedLabel.trim() || selected.map((g) => MUSCLE_LABELS[g]).join(' + ') || 'Workout',
+      scheduledDate: schedDate,
+      scheduledTime: schedTime,
+      planEncoded:  buildEncoded(),
+      reminderMin:  schedReminder,
+    });
+    setSchedSaving(false);
+    if (result.error) { setSchedError(result.error); return; }
+    setSchedSaved(true);
+    setShowSchedule(false);
   };
 
   const page: React.CSSProperties = {
@@ -305,6 +336,56 @@ export default function BuilderClient() {
           >
             Adjust selection
           </button>
+
+          {/* Schedule for later */}
+          {schedSaved ? (
+            <div style={{ textAlign: 'center', padding: '12px 0', fontSize: 13, color: 'var(--color-moss)', fontWeight: 500 }}>
+              ✓ Workout scheduled — see it in the Train tab
+            </div>
+          ) : !showSchedule ? (
+            <button
+              onClick={() => setShowSchedule(true)}
+              style={{ width: '100%', padding: '12px 16px', borderRadius: 10, background: 'transparent', color: 'var(--color-ink-3)', border: '1px dashed var(--color-line-2)', fontSize: 14, fontWeight: 400, cursor: 'pointer', fontFamily: 'inherit', marginTop: 4 }}
+            >
+              Schedule for later
+            </button>
+          ) : (
+            <div style={{ ...S.tile, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ ...S.eyebrow, marginBottom: 0 }}>Schedule workout</div>
+              <div>
+                <div style={{ ...S.eyebrow, marginBottom: 4 }}>Label (optional)</div>
+                <input value={schedLabel} onChange={(e) => setSchedLabel(e.target.value)} placeholder={selected.map((g) => MUSCLE_LABELS[g]).join(' + ') || 'Workout'} style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid var(--color-line)', background: 'var(--color-bg-sunk)', color: 'var(--color-ink)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' as const }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div>
+                  <div style={{ ...S.eyebrow, marginBottom: 4 }}>Date</div>
+                  <input type="date" value={schedDate} onChange={(e) => setSchedDate(e.target.value)} min={new Date().toLocaleDateString('sv')} style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid var(--color-line)', background: 'var(--color-bg-sunk)', color: 'var(--color-ink)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' as const }} />
+                </div>
+                <div>
+                  <div style={{ ...S.eyebrow, marginBottom: 4 }}>Time</div>
+                  <input type="time" value={schedTime} onChange={(e) => setSchedTime(e.target.value)} style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid var(--color-line)', background: 'var(--color-bg-sunk)', color: 'var(--color-ink)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' as const }} />
+                </div>
+              </div>
+              <div>
+                <div style={{ ...S.eyebrow, marginBottom: 4 }}>Remind me</div>
+                <select value={schedReminder} onChange={(e) => setSchedReminder(Number(e.target.value))} style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid var(--color-line)', background: 'var(--color-bg-sunk)', color: 'var(--color-ink)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' as const }}>
+                  <option value={15}>15 minutes before</option>
+                  <option value={30}>30 minutes before</option>
+                  <option value={60}>1 hour before</option>
+                  <option value={0}>At start time (no early reminder)</option>
+                </select>
+              </div>
+              {schedError && <div style={{ fontSize: 12, color: 'var(--color-accent)' }}>{schedError}</div>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={handleSchedule} disabled={!schedDate || schedSaving} style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none', background: schedDate && !schedSaving ? 'var(--color-ink)' : 'var(--color-bg-sunk)', color: schedDate && !schedSaving ? 'var(--color-bg)' : 'var(--color-ink-4)', fontSize: 13, fontWeight: 600, cursor: schedDate && !schedSaving ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                  {schedSaving ? 'Saving…' : 'Save schedule'}
+                </button>
+                <button onClick={() => setShowSchedule(false)} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: '1px solid var(--color-line)', background: 'transparent', color: 'var(--color-ink-3)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

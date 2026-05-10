@@ -7,6 +7,7 @@ import { EXERCISE_LIBRARY } from "../workout/exercise-library";
 import Body, { type MuscleGroup } from "../_components/Body";
 import ChatWidget from "../_components/ChatWidget";
 import WorkoutHistoryClient, { type UnifiedWorkout } from "./_components/WorkoutHistoryClient";
+import ScheduledWorkoutCard, { type ScheduledWorkout } from "./_components/ScheduledWorkoutCard";
 
 const PRIMARY_MUSCLES: MuscleGroup[] = ["quads", "glutes", "hamstrings"];
 const SECONDARY_MUSCLES: MuscleGroup[] = ["calves"];
@@ -40,7 +41,9 @@ export default async function TrainPage() {
 
   const todayShort = new Date().toLocaleDateString("en-US", { weekday: "short" });
 
-  const [{ data: sessionRows }, { data: appleRows }] = await Promise.all([
+  const today = toDateStr(new Date());
+
+  const [{ data: sessionRows }, { data: appleRows }, scheduledResult] = await Promise.all([
     db.from("workout_sessions")
       .select("id, date, type, duration_min")
       .eq("user_id", userId)
@@ -53,7 +56,27 @@ export default async function TrainPage() {
       .gte("timestamp", thirtyDaysAgo.toISOString())
       .order("timestamp", { ascending: false })
       .limit(30),
+    db.from("scheduled_workouts")
+      .select("id, label, scheduled_date, scheduled_time, plan_encoded, reminder_min")
+      .eq("user_id", userId)
+      .eq("completed", false)
+      .gte("scheduled_date", today)
+      .order("scheduled_date", { ascending: true })
+      .order("scheduled_time", { ascending: true })
+      .limit(10)
+      .then((r: { data: unknown; error: unknown }) => r)
+      .catch(() => ({ data: null })),
   ]);
+
+  type SchedRow = { id: string; label: string; scheduled_date: string; scheduled_time: string; plan_encoded: string | null; reminder_min: number };
+  const scheduledWorkouts: ScheduledWorkout[] = ((scheduledResult as { data: SchedRow[] | null }).data ?? []).map((r) => ({
+    id: r.id,
+    label: r.label,
+    scheduledDate: r.scheduled_date,
+    scheduledTime: r.scheduled_time,
+    planEncoded: r.plan_encoded,
+    reminderMin: r.reminder_min,
+  }));
 
   // Normalise manual sessions
   const manualWorkouts: UnifiedWorkout[] = (
@@ -143,6 +166,9 @@ export default async function TrainPage() {
       >
         Today&apos;s session.
       </div>
+
+      {/* Scheduled workouts */}
+      <ScheduledWorkoutCard workouts={scheduledWorkouts} />
 
       {/* Hero tile */}
       <div
