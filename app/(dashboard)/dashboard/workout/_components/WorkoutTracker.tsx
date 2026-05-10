@@ -23,9 +23,12 @@ interface Session { id: string; exerciseIds: string[] }
 
 interface WorkoutTrackerProps {
   initialExercises?: typeof EXERCISE_LIBRARY;
+  initialWarmup?:   boolean;
+  initialCooldown?: boolean;
+  initialCardio?:   CardioBlock;
 }
 
-export default function WorkoutTracker({ initialExercises }: WorkoutTrackerProps = {}) {
+export default function WorkoutTracker({ initialExercises, initialWarmup, initialCooldown, initialCardio }: WorkoutTrackerProps = {}) {
   const exercises = initialExercises ?? EXERCISE_LIBRARY;
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -59,9 +62,9 @@ export default function WorkoutTracker({ initialExercises }: WorkoutTrackerProps
   const [showPrevious, setShowPrevious] = useState(false);
 
   // Stretching + cardio extras
-  const [warmup,         setWarmup]         = useState(false);
-  const [cooldown,       setCooldown]       = useState(false);
-  const [cardioBlocks,   setCardioBlocks]   = useState<CardioBlock[]>([]);
+  const [warmup,         setWarmup]         = useState(initialWarmup   ?? false);
+  const [cooldown,       setCooldown]       = useState(initialCooldown ?? false);
+  const [cardioBlocks,   setCardioBlocks]   = useState<CardioBlock[]>(initialCardio ? [initialCardio] : []);
   const [showCardioForm, setShowCardioForm] = useState(false);
   const [cardioType,     setCardioType]     = useState("Running");
   const [cardioDuration, setCardioDuration] = useState("");
@@ -804,7 +807,7 @@ export default function WorkoutTracker({ initialExercises }: WorkoutTrackerProps
             {showCardioForm ? (
               <div style={{ background: "var(--color-bg-sunk)", borderRadius: 10, padding: "12px" }}>
                 <select value={cardioType} onChange={(e) => setCardioType(e.target.value)} style={{ width: "100%", padding: "9px 10px", borderRadius: 8, border: "1px solid var(--color-line)", background: "var(--color-bg-raised)", color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", marginBottom: 8 }}>
-                  {["Running", "Cycling", "Walking", "Jumping Jacks", "Jump Rope"].map((t) => <option key={t}>{t}</option>)}
+                  {["Running", "Walking", "Cycling", "Other", "Jumping Jacks", "Jump Rope"].map((t) => <option key={t}>{t}</option>)}
                 </select>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
                   <input value={cardioDuration} onChange={(e) => setCardioDuration(e.target.value)} placeholder="Duration (min)" type="number" min="1" style={{ padding: "9px 10px", borderRadius: 8, border: "1px solid var(--color-line)", background: "var(--color-bg-raised)", color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />

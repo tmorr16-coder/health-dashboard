@@ -107,6 +107,9 @@ const PRESETS: { label: string; groups: MuscleGroup[] }[] = [
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+const CARDIO_TYPES = ['Running', 'Walking', 'Cycling', 'Other'] as const;
+type CardioType = typeof CARDIO_TYPES[number];
+
 export default function BuilderClient() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -116,6 +119,14 @@ export default function BuilderClient() {
   const [selected, setSelected]   = useState<MuscleGroup[]>([]);
   const [difficulty, setDifficulty] = useState<Difficulty>('intermediate');
   const [editedPlan, setEditedPlan] = useState<PlannedExercise[] | null>(null);
+
+  // Cardio + stretching
+  const [stretchBefore, setStretchBefore] = useState(false);
+  const [stretchAfter,  setStretchAfter]  = useState(false);
+  const [addCardio,     setAddCardio]     = useState(false);
+  const [cardioType,    setCardioType]    = useState<CardioType>('Running');
+  const [cardioDuration, setCardioDuration] = useState('');
+  const [cardioDistance, setCardioDistance] = useState('');
 
   const toggle = (g: MuscleGroup) =>
     setSelected((prev) =>
@@ -146,10 +157,18 @@ export default function BuilderClient() {
 
   const handleStart = () => {
     startTransition(() => {
-      const slim = plan.map((ex) => ({
+      const exercises = plan.map((ex) => ({
         name: ex.name, sets: ex.sets, reps: ex.reps, primary: ex.primary,
       }));
-      const encoded = btoa(JSON.stringify(slim));
+      const payload: Record<string, unknown> = { exercises };
+      if (stretchBefore) payload.warmup  = true;
+      if (stretchAfter)  payload.cooldown = true;
+      if (addCardio && cardioDuration) {
+        const cardio: Record<string, unknown> = { type: cardioType, durationMin: parseInt(cardioDuration, 10) };
+        if (cardioDistance && cardioType !== 'Other') cardio.distanceMiles = parseFloat(cardioDistance);
+        payload.cardio = cardio;
+      }
+      const encoded = btoa(JSON.stringify(payload));
       router.push(`/dashboard/workout?plan=${encoded}`);
     });
   };
@@ -233,6 +252,33 @@ export default function BuilderClient() {
               ))}
             </div>
           </div>
+
+          {/* Stretching + cardio summary */}
+          {(stretchBefore || stretchAfter || (addCardio && cardioDuration)) && (
+            <div style={{ ...S.tileBare, marginBottom: 14 }}>
+              <div style={{ ...S.eyebrow, marginBottom: 8 }}>Extras</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {stretchBefore && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--color-bg-sunk)', borderRadius: 8 }}>
+                    <span style={{ fontSize: 13 }}>🧘</span>
+                    <span style={{ fontSize: 13, fontWeight: 500 }}>Warm-up stretching (before)</span>
+                  </div>
+                )}
+                {addCardio && cardioDuration && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--color-bg-sunk)', borderRadius: 8 }}>
+                    <span style={{ fontSize: 13 }}>🏃</span>
+                    <span style={{ fontSize: 13, fontWeight: 500 }}>{cardioType} · {cardioDuration} min{cardioDistance && cardioType !== 'Other' ? ` · ${cardioDistance} mi` : ''}</span>
+                  </div>
+                )}
+                {stretchAfter && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--color-bg-sunk)', borderRadius: 8 }}>
+                    <span style={{ fontSize: 13 }}>🧘</span>
+                    <span style={{ fontSize: 13, fontWeight: 500 }}>Cool-down stretching (after)</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* CTAs */}
           <button
@@ -409,6 +455,73 @@ export default function BuilderClient() {
             </div>
           </div>
         )}
+
+        {/* Stretching */}
+        <div style={{ ...S.tile, padding: '14px', marginBottom: 14 }}>
+          <div style={{ ...S.eyebrow, marginBottom: 8 }}>Stretching (optional)</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {([
+              ['🧘 Before', stretchBefore, () => setStretchBefore((v) => !v)],
+              ['🧘 After',  stretchAfter,  () => setStretchAfter((v)  => !v)],
+            ] as [string, boolean, () => void][]).map(([label, active, toggle]) => (
+              <button key={label} onClick={toggle} style={{
+                flex: 1, padding: '9px 0', borderRadius: 10, cursor: 'pointer',
+                border: `1px solid ${active ? 'var(--color-moss)' : 'var(--color-line)'}`,
+                background: active ? 'var(--color-moss-soft)' : 'var(--color-bg-sunk)',
+                color: active ? 'var(--color-moss)' : 'var(--color-ink-3)',
+                fontSize: 12, fontWeight: active ? 600 : 400, fontFamily: 'inherit',
+              }}>{label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Cardio */}
+        <div style={{ ...S.tile, padding: '14px', marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: addCardio ? 10 : 0 }}>
+            <div style={S.eyebrow}>Cardio (optional)</div>
+            <button onClick={() => setAddCardio((v) => !v)} style={{
+              padding: '4px 10px', borderRadius: 20, border: `1px solid ${addCardio ? 'var(--color-accent)' : 'var(--color-line)'}`,
+              background: addCardio ? 'var(--color-accent-soft)' : 'var(--color-bg-sunk)',
+              color: addCardio ? 'var(--color-accent)' : 'var(--color-ink-3)',
+              fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+            }}>{addCardio ? 'Remove' : '+ Add'}</button>
+          </div>
+          {addCardio && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                {CARDIO_TYPES.map((t) => (
+                  <button key={t} onClick={() => setCardioType(t)} style={{
+                    padding: '7px 4px', borderRadius: 8, cursor: 'pointer',
+                    border: `1px solid ${cardioType === t ? 'var(--color-accent)' : 'var(--color-line)'}`,
+                    background: cardioType === t ? 'var(--color-accent-soft)' : 'var(--color-bg-sunk)',
+                    color: cardioType === t ? 'var(--color-accent)' : 'var(--color-ink-3)',
+                    fontSize: 11, fontWeight: cardioType === t ? 600 : 400, fontFamily: 'inherit',
+                  }}>{t === 'Running' ? 'Run' : t === 'Walking' ? 'Walk' : t === 'Cycling' ? 'Bike' : 'Other'}</button>
+                ))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: cardioType !== 'Other' ? '1fr 1fr' : '1fr', gap: 8 }}>
+                <div>
+                  <div style={{ ...S.eyebrow, marginBottom: 4 }}>Duration (min)</div>
+                  <input
+                    value={cardioDuration} onChange={(e) => setCardioDuration(e.target.value)}
+                    type="number" min="1" placeholder="e.g. 20"
+                    style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid var(--color-line)', background: 'var(--color-bg-sunk)', color: 'var(--color-ink)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' as const }}
+                  />
+                </div>
+                {cardioType !== 'Other' && (
+                  <div>
+                    <div style={{ ...S.eyebrow, marginBottom: 4 }}>Distance (mi, opt.)</div>
+                    <input
+                      value={cardioDistance} onChange={(e) => setCardioDistance(e.target.value)}
+                      type="number" min="0" step="0.1" placeholder="e.g. 2.5"
+                      style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid var(--color-line)', background: 'var(--color-bg-sunk)', color: 'var(--color-ink)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' as const }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* CTA */}
         <button
