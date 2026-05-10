@@ -492,44 +492,6 @@ export default function ProgressClient({
         </div>
       )}
 
-      {/* ── Activity feed ─────────────────────────────────────── */}
-      {feedItems.length > 0 && (() => {
-        const groups: { day: string; items: FeedItem[] }[] = [];
-        for (const item of feedItems.slice(0, 30)) {
-          const day = relativeDay(item.date);
-          const last = groups[groups.length - 1];
-          if (last && last.day === day) last.items.push(item);
-          else groups.push({ day, items: [item] });
-        }
-        return (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", margin: "20px 0 10px" }}>
-              Activity feed
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {groups.map(({ day, items }) => (
-                <div key={day}>
-                  <div style={{ fontSize: 10, color: "var(--color-ink-4)", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 500, marginBottom: 6 }}>{day}</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                    {items.map((item) => (
-                      <div key={item.id} style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ width: 30, height: 30, borderRadius: 7, background: item.type === "workout" ? "var(--color-accent-soft)" : "var(--color-bg-sunk)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>
-                          {item.icon}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</div>
-                          {item.detail && <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 1 }}>{item.detail}</div>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-
       {/* ── Body composition stats (always shown) ────────────── */}
       <div
         style={{
@@ -658,6 +620,44 @@ export default function ProgressClient({
           </div>
         </div>
       </div>
+
+      {/* ── Activity feed ─────────────────────────────────────── */}
+      {feedItems.length > 0 && (() => {
+        const groups: { day: string; items: FeedItem[] }[] = [];
+        for (const item of feedItems.slice(0, 30)) {
+          const day = relativeDay(item.date);
+          const last = groups[groups.length - 1];
+          if (last && last.day === day) last.items.push(item);
+          else groups.push({ day, items: [item] });
+        }
+        return (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", margin: "20px 0 10px" }}>
+              Activity feed
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {groups.map(({ day, items }) => (
+                <div key={day}>
+                  <div style={{ fontSize: 10, color: "var(--color-ink-4)", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 500, marginBottom: 6 }}>{day}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    {items.map((item) => (
+                      <div key={item.id} style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ width: 30, height: 30, borderRadius: 7, background: item.type === "workout" ? "var(--color-accent-soft)" : "var(--color-bg-sunk)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, flexShrink: 0 }}>
+                          {item.icon}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</div>
+                          {item.detail && <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 1 }}>{item.detail}</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

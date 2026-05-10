@@ -52,6 +52,9 @@ function ZepboundCard() {
   const [data, setData] = useState<ZepboundData | null>(null);
   const [editingDose, setEditingDose] = useState(false);
   const [editingDay, setEditingDay] = useState(false);
+  const [editingSite, setEditingSite] = useState(false);
+  const [editHistory, setEditHistory] = useState(false);
+  const [editingLogDate, setEditingLogDate] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -79,6 +82,17 @@ function ZepboundCard() {
     const site = INJECTION_SITES[data.siteIndex];
     const nextSiteIndex = (data.siteIndex + 1) % INJECTION_SITES.length;
     save({ ...data, siteIndex: nextSiteIndex, logs: [...data.logs, { date: today, dose: data.dose, site }] });
+  }
+
+  function deleteLog(date: string) {
+    if (!data) return;
+    save({ ...data, logs: data.logs.filter((l) => l.date !== date) });
+  }
+
+  function updateLog(date: string, patch: Partial<ZepboundLog>) {
+    if (!data) return;
+    save({ ...data, logs: data.logs.map((l) => l.date === date ? { ...l, ...patch } : l) });
+    setEditingLogDate(null);
   }
 
   function nextInjectionDays(): string {
@@ -220,9 +234,14 @@ function ZepboundCard() {
       <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginBottom: 3 }}>Next injection site</div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)" }}>{nextSite}</div>
-          <div style={{ fontSize: 10, color: "var(--color-ink-4)", marginTop: 2 }}>
-            Rotating: {INJECTION_SITES.join(" → ")}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)" }}>{nextSite}</div>
+            <button
+              onClick={() => setEditingSite((v) => !v)}
+              style={{ fontSize: 10, padding: "2px 7px", borderRadius: 5, border: "1px solid var(--color-line)", background: editingSite ? "var(--color-ink)" : "var(--color-bg-sunk)", color: editingSite ? "var(--color-bg)" : "var(--color-ink-3)", cursor: "pointer", fontFamily: "inherit" }}
+            >
+              Override
+            </button>
           </div>
         </div>
         <button
@@ -244,6 +263,30 @@ function ZepboundCard() {
           {loggedToday ? "✓ Done" : "Log Dose"}
         </button>
       </div>
+      {editingSite && data && (
+        <div style={{ padding: "0 16px 12px" }}>
+          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>
+            Select next site
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {INJECTION_SITES.map((s, idx) => (
+              <button
+                key={s}
+                onClick={() => { save({ ...data, siteIndex: idx }); setEditingSite(false); }}
+                style={{
+                  padding: "7px 12px", borderRadius: 8,
+                  border: `1px solid ${data.siteIndex === idx ? "var(--color-slate)" : "var(--color-line)"}`,
+                  background: data.siteIndex === idx ? "var(--color-slate-soft)" : "var(--color-bg-sunk)",
+                  color: data.siteIndex === idx ? "var(--color-slate)" : "var(--color-ink-2)",
+                  fontSize: 13, fontWeight: data.siteIndex === idx ? 600 : 400, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Config buttons */}
       <div style={{ padding: "0 16px 12px", display: "flex", gap: 8 }}>
@@ -276,8 +319,16 @@ function ZepboundCard() {
       {/* Dose history */}
       {allLogs.length > 0 && (
         <div style={{ borderTop: "1px solid var(--color-line)", padding: "12px 16px" }}>
-          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 10 }}>
-            Dose history · {allLogs.length} injection{allLogs.length !== 1 ? "s" : ""}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)" }}>
+              Dose history · {allLogs.length} injection{allLogs.length !== 1 ? "s" : ""}
+            </div>
+            <button
+              onClick={() => { setEditHistory((v) => !v); setEditingLogDate(null); }}
+              style={{ background: "none", border: "none", color: editHistory ? "var(--color-accent)" : "var(--color-ink-3)", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em", textTransform: "uppercase", padding: 0 }}
+            >
+              {editHistory ? "Done" : "Edit"}
+            </button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {Array.from(byMonth.entries()).map(([month, logs]) => (
@@ -289,25 +340,61 @@ function ZepboundCard() {
                   {logs.map((log, i) => {
                     const d = new Date(log.date + "T12:00:00");
                     const dayLabel = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+                    const isFirst = i === 0 && month === Array.from(byMonth.keys())[0];
+                    const isEditing = editingLogDate === log.date;
                     return (
-                      <div
-                        key={i}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          padding: "7px 10px",
-                          borderRadius: 8,
-                          background: i === 0 && month === Array.from(byMonth.keys())[0] ? "var(--color-moss-soft)" : "var(--color-bg-sunk)",
-                        }}
-                      >
-                        <div>
-                          <span style={{ fontSize: 12, color: "var(--color-ink-2)", fontWeight: 500 }}>{dayLabel}</span>
-                          <span style={{ marginLeft: 8, fontSize: 11, color: "var(--color-ink-4)" }}>{log.site}</span>
+                      <div key={log.date}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            padding: "7px 10px",
+                            borderRadius: isEditing ? "8px 8px 0 0" : 8,
+                            background: isFirst ? "var(--color-moss-soft)" : "var(--color-bg-sunk)",
+                            cursor: editHistory ? "pointer" : "default",
+                          }}
+                          onClick={() => editHistory && setEditingLogDate(isEditing ? null : log.date)}
+                        >
+                          {editHistory && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); deleteLog(log.date); }}
+                              style={{ width: 22, height: 22, borderRadius: 11, background: "var(--color-accent)", border: "none", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 16, lineHeight: 1, fontWeight: 300, fontFamily: "inherit" }}
+                            >
+                              −
+                            </button>
+                          )}
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontSize: 12, color: "var(--color-ink-2)", fontWeight: 500 }}>{dayLabel}</span>
+                            <span style={{ marginLeft: 8, fontSize: 11, color: "var(--color-ink-4)" }}>{log.site}</span>
+                          </div>
+                          <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600, color: "var(--color-ink)" }}>
+                            {log.dose} mg
+                          </div>
+                          {editHistory && <span style={{ fontSize: 13, color: "var(--color-ink-4)" }}>{isEditing ? "▲" : "›"}</span>}
                         </div>
-                        <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600, color: "var(--color-ink)" }}>
-                          {log.dose} mg
-                        </div>
+                        {isEditing && (
+                          <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderTop: "none", borderRadius: "0 0 8px 8px", padding: "10px 10px 12px" }}>
+                            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>Dose</div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 }}>
+                              {ZEPBOUND_DOSES.map((d) => (
+                                <button key={d} onClick={() => updateLog(log.date, { dose: d })}
+                                  style={{ padding: "5px 10px", borderRadius: 7, border: `1px solid ${log.dose === d ? "var(--color-accent)" : "var(--color-line)"}`, background: log.dose === d ? "var(--color-accent-soft)" : "var(--color-bg-sunk)", color: log.dose === d ? "var(--color-accent)" : "var(--color-ink-2)", fontSize: 12, fontWeight: log.dose === d ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
+                                  {d} mg
+                                </button>
+                              ))}
+                            </div>
+                            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 6 }}>Site</div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                              {INJECTION_SITES.map((s) => (
+                                <button key={s} onClick={() => updateLog(log.date, { site: s })}
+                                  style={{ padding: "5px 10px", borderRadius: 7, border: `1px solid ${log.site === s ? "var(--color-slate)" : "var(--color-line)"}`, background: log.site === s ? "var(--color-slate-soft)" : "var(--color-bg-sunk)", color: log.site === s ? "var(--color-slate)" : "var(--color-ink-2)", fontSize: 12, fontWeight: log.site === s ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
