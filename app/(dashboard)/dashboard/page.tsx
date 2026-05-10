@@ -579,12 +579,6 @@ export default async function DashboardPage() {
           </div>
         </Link>
 
-        {/* Community feed */}
-        <CommunityFeed />
-
-        {/* Recent Workouts */}
-        <RecentWorkoutsCard workouts={recentWorkouts} />
-
         {/* Health chat */}
         <div
           style={{
@@ -613,6 +607,12 @@ export default async function DashboardPage() {
             compact
           />
         </div>
+
+        {/* Community feed */}
+        <CommunityFeed />
+
+        {/* Recent Workouts */}
+        <RecentWorkoutsCard workouts={recentWorkouts} />
 
       </div>
     </div>
