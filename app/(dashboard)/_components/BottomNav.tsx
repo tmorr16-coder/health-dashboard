@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import Image from "next/image";
 
 const TABS = [
   { label: "Today",    href: "/dashboard" },
@@ -14,6 +17,14 @@ const TABS = [
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data: { user } }) => {
+      const meta = user?.user_metadata ?? {};
+      setAvatarUrl(meta.avatar_url ?? meta.picture ?? null);
+    });
+  }, []);
 
   return (
     <nav
@@ -51,16 +62,29 @@ export default function BottomNav() {
               padding: "8px 0",
             }}
           >
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: isActive ? 600 : 500,
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-              }}
-            >
-              {label}
-            </span>
+            {href === "/dashboard/profile" && avatarUrl ? (
+              <Image
+                src={avatarUrl}
+                alt="Profile"
+                width={22}
+                height={22}
+                style={{
+                  borderRadius: "50%",
+                  border: isActive ? "2px solid var(--color-accent)" : "2px solid transparent",
+                }}
+              />
+            ) : (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: isActive ? 600 : 500,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
+                {label}
+              </span>
+            )}
             <span
               style={{
                 width: 4,

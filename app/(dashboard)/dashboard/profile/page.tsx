@@ -1,6 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+import Image from "next/image";
+
+interface OAuthUser {
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+  provider: string;
+}
 
 interface UserProfile {
   name: string;
@@ -78,24 +87,46 @@ const fieldInput: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
+const PROVIDER_LABELS: Record<string, string> = {
+  google:   "Google",
+  apple:    "Apple",
+  linkedin: "LinkedIn",
+  github:   "GitHub",
+};
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [saved, setSaved] = useState(false);
+  const [oauthUser, setOauthUser] = useState<OAuthUser | null>(null);
 
   useEffect(() => {
+    // Load saved profile from localStorage
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      // Migrate old single-string fitnessGoal → array
-      if (typeof parsed.fitnessGoal === "string" && !parsed.fitnessGoals) {
-        parsed.fitnessGoals = parsed.fitnessGoal ? [parsed.fitnessGoal] : [];
-        delete parsed.fitnessGoal;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.fitnessGoal === "string" && !parsed.fitnessGoals) {
+          parsed.fitnessGoals = parsed.fitnessGoal ? [parsed.fitnessGoal] : [];
+          delete parsed.fitnessGoal;
+        }
+        setProfile({ ...DEFAULT_PROFILE, ...parsed });
       }
-      setProfile({ ...DEFAULT_PROFILE, ...parsed });
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
+
+    // Load OAuth user info from Supabase session
+    createClient().auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      const meta = user.user_metadata ?? {};
+      const oauth: OAuthUser = {
+        name:      meta.full_name ?? meta.name ?? "",
+        email:     user.email ?? "",
+        avatarUrl: meta.avatar_url ?? meta.picture ?? null,
+        provider:  user.app_metadata?.provider ?? "google",
+      };
+      setOauthUser(oauth);
+      // Pre-populate name if the profile doesn't have one yet
+      setProfile((p) => ({ ...p, name: p.name || oauth.name }));
+    });
   }, []);
 
   function update<K extends keyof UserProfile>(key: K, value: UserProfile[K]) {
@@ -164,6 +195,74 @@ export default function ProfilePage() {
         <br />
         <span style={{ color: "var(--color-accent)" }}>preferences.</span>
       </div>
+
+      {/* OAuth identity card */}
+      {oauthUser && (
+        <div
+          style={{
+            background: "var(--color-bg-raised)",
+            border: "1px solid var(--color-line)",
+            borderRadius: 14,
+            padding: "16px",
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            marginBottom: 20,
+          }}
+        >
+          {oauthUser.avatarUrl ? (
+            <Image
+              src={oauthUser.avatarUrl}
+              alt={oauthUser.name}
+              width={56}
+              height={56}
+              style={{ borderRadius: "50%", flexShrink: 0 }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: "50%",
+                background: "var(--color-ink)",
+                color: "var(--color-bg)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 22,
+                fontFamily: "var(--font-display)",
+                flexShrink: 0,
+              }}
+            >
+              {oauthUser.name?.[0] ?? "?"}
+            </div>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: "var(--color-ink)", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {oauthUser.name}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {oauthUser.email}
+            </div>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "2px 8px",
+                borderRadius: 20,
+                background: "var(--color-bg-sunk)",
+                border: "1px solid var(--color-line)",
+                fontSize: 10,
+                fontWeight: 500,
+                color: "var(--color-ink-4)",
+              }}
+            >
+              via {PROVIDER_LABELS[oauthUser.provider] ?? oauthUser.provider}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
