@@ -59,13 +59,8 @@ function ZepboundCard() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem(ZEPBOUND_KEY);
-      if (raw) {
-        setData(JSON.parse(raw));
-      } else {
-        const initial: ZepboundData = { dose: 2.5, injectionDay: "Tuesday", siteIndex: 0, logs: [] };
-        localStorage.setItem(ZEPBOUND_KEY, JSON.stringify(initial));
-        setData(initial);
-      }
+      if (raw) setData(JSON.parse(raw));
+      // No auto-init — only show if the user has previously saved data
     } catch { /* ignore */ }
   }, []);
 
@@ -621,6 +616,8 @@ function EditSheet({ med, onSave, onClose }: {
   );
 }
 
+const ZEPBOUND_ENABLED_KEY = "zepbound-enabled";
+
 // ── Main component ─────────────────────────────────────────────
 export default function MedicationsClient({ initialMeds }: { initialMeds: Med[] }) {
   const [meds, setMeds] = useState<Med[]>(initialMeds);
@@ -629,6 +626,22 @@ export default function MedicationsClient({ initialMeds }: { initialMeds: Med[] 
   const [showAdd, setShowAdd] = useState(false);
   const [editTarget, setEditTarget] = useState<Med | null>(null);
   const [, startTransition] = useTransition();
+  const [zepboundEnabled, setZepboundEnabled] = useState(false);
+
+  useEffect(() => {
+    setZepboundEnabled(localStorage.getItem(ZEPBOUND_ENABLED_KEY) === "true");
+  }, []);
+
+  function enableZepbound() {
+    localStorage.setItem(ZEPBOUND_ENABLED_KEY, "true");
+    setZepboundEnabled(true);
+  }
+
+  function disableZepbound() {
+    localStorage.removeItem(ZEPBOUND_ENABLED_KEY);
+    localStorage.removeItem(ZEPBOUND_KEY);
+    setZepboundEnabled(false);
+  }
 
   const handleAdd = (data: Omit<Med, "id">) => {
     const tempId = `temp-${Date.now()}`;
@@ -664,7 +677,35 @@ export default function MedicationsClient({ initialMeds }: { initialMeds: Med[] 
 
   return (
     <div>
-      <ZepboundCard />
+      {zepboundEnabled ? (
+        <>
+          <ZepboundCard />
+          <button
+            onClick={disableZepbound}
+            style={{ display: "block", margin: "0 auto 12px", background: "none", border: "none", color: "var(--color-ink-4)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            Hide Zepbound tracker
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={enableZepbound}
+          style={{
+            width: "100%", display: "flex", alignItems: "center", gap: 12,
+            padding: "12px 16px", marginBottom: 12, borderRadius: 14,
+            background: "var(--color-bg-raised)", border: "1px dashed var(--color-line-2)",
+            cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+          }}
+        >
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--color-accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+            💉
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)" }}>Track Zepbound / GLP-1</div>
+            <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 1 }}>Log doses, track injection sites &amp; escalation</div>
+          </div>
+        </button>
+      )}
 
       <div
         style={{
