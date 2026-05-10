@@ -257,6 +257,17 @@ export default function ProfileClient({ withingsWeightLbs }: { withingsWeightLbs
           {saved ? "Saved ✓" : "Save profile"}
         </button>
 
+        {/* Sign out */}
+        <button
+          onClick={async () => {
+            await createClient().auth.signOut();
+            window.location.href = "/";
+          }}
+          style={{ width: "100%", padding: "14px", borderRadius: 12, border: "1px solid var(--color-line)", background: "transparent", color: "var(--color-ink-3)", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", marginBottom: 8 }}
+        >
+          Sign out
+        </button>
+
       </div>
     </div>
   );

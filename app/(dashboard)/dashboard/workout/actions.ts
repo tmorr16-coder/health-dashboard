@@ -101,3 +101,32 @@ export async function finishSession(
   revalidatePath("/dashboard");
   return {};
 }
+
+export interface CardioBlock {
+  type: string;
+  durationMin: number;
+  distanceMiles?: number;
+}
+
+export async function saveCardioBlocks(
+  blocks: CardioBlock[]
+): Promise<{ error?: string }> {
+  if (!blocks.length) return {};
+  const db: AnyClient = createAdminClient();
+  const userId = getCurrentUserId();
+  const date = new Date().toLocaleDateString("sv");
+
+  const rows = blocks.map((b) => ({
+    user_id: userId,
+    date,
+    type: b.type,
+    duration_min: b.durationMin,
+    ...(b.distanceMiles != null ? { distance_miles: b.distanceMiles } : {}),
+  }));
+
+  const { error } = await db.from("workout_sessions").insert(rows);
+  if (error) return { error: error.message };
+
+  revalidatePath("/dashboard");
+  return {};
+}

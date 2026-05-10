@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { EXERCISE_LIBRARY, suggestNext, type SetLog } from "../exercise-library";
-import { createWorkoutSession, saveSet, finishSession } from "../actions";
+import { createWorkoutSession, saveSet, finishSession, saveCardioBlocks, type CardioBlock } from "../actions";
 import PostWorkoutSummary from "./PostWorkoutSummary";
 
 // ── style tokens ──────────────────────────────────────────────────────────────
@@ -57,6 +57,15 @@ export default function WorkoutTracker({ initialExercises }: WorkoutTrackerProps
   // Collapsible sections
   const [showCues,     setShowCues]     = useState(false);
   const [showPrevious, setShowPrevious] = useState(false);
+
+  // Stretching + cardio extras
+  const [warmup,         setWarmup]         = useState(false);
+  const [cooldown,       setCooldown]       = useState(false);
+  const [cardioBlocks,   setCardioBlocks]   = useState<CardioBlock[]>([]);
+  const [showCardioForm, setShowCardioForm] = useState(false);
+  const [cardioType,     setCardioType]     = useState("Running");
+  const [cardioDuration, setCardioDuration] = useState("");
+  const [cardioDistance, setCardioDistance] = useState("");
 
   // ── effects ───────────────────────────────────────────────────────────────
 
@@ -147,8 +156,28 @@ export default function WorkoutTracker({ initialExercises }: WorkoutTrackerProps
   const handleSaveAndReturn = () => {
     startTransition(async () => {
       if (session) await finishSession(session.id, Math.round(sessionElapsed / 60));
+      const extras: CardioBlock[] = [
+        ...(warmup   ? [{ type: "Stretching (warm-up)",  durationMin: 5 }] : []),
+        ...cardioBlocks,
+        ...(cooldown ? [{ type: "Stretching (cool-down)", durationMin: 5 }] : []),
+      ];
+      if (extras.length) await saveCardioBlocks(extras);
       router.push("/dashboard");
     });
+  };
+
+  const handleAddCardio = () => {
+    const dur = parseFloat(cardioDuration);
+    if (!dur || dur <= 0) return;
+    const dist = parseFloat(cardioDistance);
+    setCardioBlocks((prev) => [...prev, {
+      type: cardioType,
+      durationMin: dur,
+      ...(dist > 0 ? { distanceMiles: dist } : {}),
+    }]);
+    setCardioDuration("");
+    setCardioDistance("");
+    setShowCardioForm(false);
   };
 
   const jumpToExercise = (i: number) => {
@@ -742,6 +771,59 @@ export default function WorkoutTracker({ initialExercises }: WorkoutTrackerProps
           )}
         </div>
 
+      </div>
+
+      {/* ── Extras: stretching + cardio ──────────────────────────────────────── */}
+      <div style={{ padding: "0 16px 16px" }}>
+        <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, overflow: "hidden" }}>
+          <div style={{ padding: "12px 14px 10px", borderBottom: "1px solid var(--color-line)" }}>
+            <div style={{ ...eyebrow, marginBottom: 8 }}>Stretching</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[["🧘 Warm-up", warmup, () => setWarmup((v) => !v)] as const,
+                ["🧘 Cool-down", cooldown, () => setCooldown((v) => !v)] as const].map(([label, active, toggle]) => (
+                <button key={label} onClick={toggle} style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: `1px solid ${active ? "var(--color-moss)" : "var(--color-line)"}`, background: active ? "var(--color-moss-soft)" : "var(--color-bg-sunk)", color: active ? "var(--color-moss)" : "var(--color-ink-3)", fontSize: 12, fontWeight: active ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ padding: "12px 14px" }}>
+            <div style={{ ...eyebrow, marginBottom: 8 }}>Cardio</div>
+
+            {cardioBlocks.map((b, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: "var(--color-bg-sunk)", borderRadius: 8, marginBottom: 6 }}>
+                <div>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: "var(--color-ink)" }}>{b.type}</span>
+                  <span style={{ fontSize: 11, color: "var(--color-ink-4)", marginLeft: 8 }}>{b.durationMin} min{b.distanceMiles ? ` · ${b.distanceMiles} mi` : ""}</span>
+                </div>
+                <button onClick={() => setCardioBlocks((prev) => prev.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: "var(--color-ink-4)", fontSize: 16, cursor: "pointer", padding: "0 4px", lineHeight: 1 }}>×</button>
+              </div>
+            ))}
+
+            {showCardioForm ? (
+              <div style={{ background: "var(--color-bg-sunk)", borderRadius: 10, padding: "12px" }}>
+                <select value={cardioType} onChange={(e) => setCardioType(e.target.value)} style={{ width: "100%", padding: "9px 10px", borderRadius: 8, border: "1px solid var(--color-line)", background: "var(--color-bg-raised)", color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", marginBottom: 8 }}>
+                  {["Running", "Cycling", "Walking", "Jumping Jacks", "Jump Rope"].map((t) => <option key={t}>{t}</option>)}
+                </select>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                  <input value={cardioDuration} onChange={(e) => setCardioDuration(e.target.value)} placeholder="Duration (min)" type="number" min="1" style={{ padding: "9px 10px", borderRadius: 8, border: "1px solid var(--color-line)", background: "var(--color-bg-raised)", color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                  {["Running", "Cycling", "Walking"].includes(cardioType) && (
+                    <input value={cardioDistance} onChange={(e) => setCardioDistance(e.target.value)} placeholder="Distance (mi)" type="number" min="0" step="0.1" style={{ padding: "9px 10px", borderRadius: 8, border: "1px solid var(--color-line)", background: "var(--color-bg-raised)", color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={handleAddCardio} disabled={!cardioDuration} style={{ flex: 2, padding: "9px 0", borderRadius: 8, border: "none", background: cardioDuration ? "var(--color-ink)" : "var(--color-bg-sunk)", color: cardioDuration ? "var(--color-bg)" : "var(--color-ink-4)", fontSize: 13, fontWeight: 600, cursor: cardioDuration ? "pointer" : "not-allowed", fontFamily: "inherit" }}>Add</button>
+                  <button onClick={() => setShowCardioForm(false)} style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "1px solid var(--color-line)", background: "transparent", color: "var(--color-ink-3)", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setShowCardioForm(true)} style={{ width: "100%", padding: "9px", borderRadius: 8, border: "1.5px dashed var(--color-line-2)", background: "transparent", color: "var(--color-ink-3)", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+                + Add cardio
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ── Floating rest timer ──────────────────────────────────────────────── */}
