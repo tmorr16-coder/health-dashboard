@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 export async function disconnectWithings(): Promise<{ error?: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const { error } = await db
     .from("withings_tokens")

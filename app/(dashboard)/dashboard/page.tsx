@@ -70,7 +70,7 @@ function getMondayOf(d: Date): Date {
 export default async function DashboardPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);

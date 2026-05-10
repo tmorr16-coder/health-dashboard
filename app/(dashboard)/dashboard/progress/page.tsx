@@ -9,7 +9,7 @@ function toDateStr(d: Date) { return d.toLocaleDateString("sv"); }
 export default async function ProgressPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const sevenDaysAgo  = new Date(Date.now() - 7  * 86_400_000);
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);

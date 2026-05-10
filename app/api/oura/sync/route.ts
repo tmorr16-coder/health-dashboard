@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentUserId } from "@/lib/auth";
+import { DEV_USER_ID } from "@/lib/auth";
 
 const BASE = "https://api.ouraring.com/v2/usercollection";
 
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db     = createAdminClient() as any;
-  const userId = getCurrentUserId();
+  const userId = DEV_USER_ID;
 
   // First sync = last 7 days; subsequent = last 2 days (overlap handles timezone edges)
   const { count } = await db

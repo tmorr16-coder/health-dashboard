@@ -19,7 +19,7 @@ function daysUntilNext(lastDateStr: string): number {
 export default async function MedicationsPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const [{ data: medsData, error: medsError }, { data: latestDose }, { count: doseCount }] =
     await Promise.all([

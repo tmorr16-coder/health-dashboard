@@ -18,7 +18,7 @@ export async function addMeal(data: {
   is_favorite?: boolean;
 }): Promise<{ error?: string; id?: string }> {
   const db: AnyClient = createAdminClient();
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const { data: row, error } = await db
     .from("meals")
@@ -34,7 +34,7 @@ export async function addMeal(data: {
 
 export async function deleteMeal(id: string): Promise<{ error?: string }> {
   const db: AnyClient = createAdminClient();
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const { error } = await db
     .from("meals")
@@ -50,7 +50,7 @@ export async function deleteMeal(id: string): Promise<{ error?: string }> {
 
 export async function toggleFavorite(id: string, isFavorite: boolean): Promise<{ error?: string }> {
   const db: AnyClient = createAdminClient();
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const { error } = await db
     .from("meals")

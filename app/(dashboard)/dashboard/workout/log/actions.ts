@@ -15,7 +15,7 @@ export async function quickLogWorkout(data: {
   effort?: string | null;
 }): Promise<{ error?: string }> {
   const db: AnyClient = createAdminClient();
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const { error } = await db.from("workout_sessions").insert({
     user_id: userId,
@@ -36,7 +36,7 @@ export async function quickLogWorkout(data: {
 
 export async function deleteWorkoutSession(id: string): Promise<{ error?: string }> {
   const db: AnyClient = createAdminClient();
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const { error } = await db
     .from("workout_sessions")

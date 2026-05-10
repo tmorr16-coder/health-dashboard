@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
   // Upsert tokens (one row per user; update on reconnect)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const { error: dbErr } = await db.from("withings_tokens").upsert(
     {

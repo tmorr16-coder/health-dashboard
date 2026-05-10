@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentUserId } from "@/lib/auth";
+import { DEV_USER_ID } from "@/lib/auth";
 
 // ── Withings measurement type → app metric mapping ────────────────────────────
 // Withings values come as integer mantissa + integer exponent: actual = value * 10^unit
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db     = createAdminClient() as any;
-  const userId = getCurrentUserId();
+  const userId = DEV_USER_ID;
 
   // Get (and refresh if needed) the access token
   const tokenResult = await getValidToken(db, userId);

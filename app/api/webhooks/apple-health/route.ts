@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentUserId } from "@/lib/auth";
+import { DEV_USER_ID } from "@/lib/auth";
 
 // ── payload types (Health Auto Export REST format) ────────────────────────────
 // Top-level: { data: { metrics?, workouts? } }
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db     = createAdminClient() as any;
-  const userId = getCurrentUserId();
+  const userId = DEV_USER_ID;
 
   let metricsInserted  = 0;
   let workoutsInserted = 0;

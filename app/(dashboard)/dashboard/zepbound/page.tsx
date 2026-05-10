@@ -40,7 +40,7 @@ function daysUntil(dateStr: string): number {
 
 export default async function ZepboundPage() {
   const supabase = await createClient();
-  const userId   = getCurrentUserId();
+  const userId   = await getCurrentUserId();
 
   const { data: rawDoses } = (await supabase
     .from("doses")

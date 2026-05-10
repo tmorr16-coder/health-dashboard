@@ -13,7 +13,7 @@ export async function addMedication(data: {
   schedule: string;
 }): Promise<{ id?: string; error?: string }> {
   const db: AnyClient = createAdminClient();
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const { data: row, error } = await db
     .from("medications")
@@ -31,7 +31,7 @@ export async function updateMedication(
   data: { name: string; dose: string; schedule: string }
 ): Promise<{ error?: string }> {
   const db: AnyClient = createAdminClient();
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const { error } = await db
     .from("medications")
@@ -46,7 +46,7 @@ export async function updateMedication(
 
 export async function removeMedication(id: string): Promise<{ error?: string }> {
   const db: AnyClient = createAdminClient();
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const { error } = await db
     .from("medications")

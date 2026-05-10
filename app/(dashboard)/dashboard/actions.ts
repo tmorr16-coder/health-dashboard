@@ -11,7 +11,7 @@ export async function logDose(data: {
   notes: string;
 }): Promise<{ error?: string }> {
   const supabase = createAdminClient();
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any).from("doses").insert({

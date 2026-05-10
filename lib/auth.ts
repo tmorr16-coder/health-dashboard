@@ -1,22 +1,19 @@
-// =============================================================
-// TEMPORARY: Auth disabled for development.
-// Replace before deploying to production.
-//
-// How to restore real auth:
-//  1. Re-add proxy.ts (session refresh + route guard)
-//  2. Re-add app/(auth)/login and app/auth/callback routes
-//  3. Replace getCurrentUserId() with a call to
-//     supabase.auth.getUser() from the server client
-//  4. Re-enable RLS in Supabase (undo the seed.sql ALTER TABLE lines)
-// =============================================================
+import { createClient } from "@/lib/supabase/server";
 
 export const DEV_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 /**
- * Returns the current user's UUID.
- * In production this will read from the authenticated session;
- * for now it returns the hardcoded dev user inserted by seed.sql.
+ * Returns the authenticated user's UUID from their session.
+ * Falls back to DEV_USER_ID when auth bypass is enabled (local dev).
  */
-export function getCurrentUserId(): string {
+export async function getCurrentUserId(): Promise<string> {
+  if (process.env.NEXT_PUBLIC_AUTH_BYPASS === "true") {
+    return DEV_USER_ID;
+  }
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user?.id) return user.id;
+  } catch { /* ignore */ }
   return DEV_USER_ID;
 }

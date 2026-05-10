@@ -7,7 +7,7 @@ import ProfileClient from "./_components/ProfileClient";
 export default async function ProfilePage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const { data: weightRow } = await db
     .from("apple_health_metrics")

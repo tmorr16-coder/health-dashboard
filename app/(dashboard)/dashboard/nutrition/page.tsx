@@ -7,7 +7,7 @@ import NutritionClient, { type Meal } from "./_components/NutritionClient";
 export default async function NutritionPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
   const today = new Date().toLocaleDateString("sv");
 
   const [{ data: todayMeals }, { data: favMeals }] = await Promise.all([

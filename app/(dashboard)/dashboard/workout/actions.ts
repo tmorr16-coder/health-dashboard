@@ -21,7 +21,7 @@ export async function createWorkoutSession(
   error?: string;
 }> {
   const db: AnyClient = createAdminClient();
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const exList: SessionExercise[] = customExercises
     ?? EXERCISE_LIBRARY.map((ex) => ({ name: ex.name, muscles: ex.muscles }));
@@ -70,7 +70,7 @@ export async function saveSet(data: {
   rpe: number;
 }): Promise<{ error?: string }> {
   const db: AnyClient = createAdminClient();
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
 
   const { error } = await db.from("sets").insert({
     exercise_id: data.exerciseId,
@@ -113,7 +113,7 @@ export async function saveCardioBlocks(
 ): Promise<{ error?: string }> {
   if (!blocks.length) return {};
   const db: AnyClient = createAdminClient();
-  const userId = getCurrentUserId();
+  const userId = await getCurrentUserId();
   const date = new Date().toLocaleDateString("sv");
 
   const rows = blocks.map((b) => ({

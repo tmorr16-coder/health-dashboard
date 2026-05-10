@@ -16,8 +16,10 @@ export default async function IntegrationsPage({
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const userId = getCurrentUserId();
-  const params = await searchParams;
+  const [userId, params] = await Promise.all([
+    getCurrentUserId(),
+    searchParams,
+  ]);
 
   const [
     { data: tokenRow },
