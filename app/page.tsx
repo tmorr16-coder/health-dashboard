@@ -140,7 +140,7 @@ export default function LandingPage() {
           maxWidth: 340,
         }}
       >
-        {["Workout Tracker", "Zepbound Doses", "Sleep & HRV", "Nutrition", "AI Coach", "Progress Feed"].map((label) => (
+        {["Workout Tracker", "Sleep & HRV", "Nutrition", "AI Coach", "Progress Feed", "Community"].map((label) => (
           <span
             key={label}
             style={{

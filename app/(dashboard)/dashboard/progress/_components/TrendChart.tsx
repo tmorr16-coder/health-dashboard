@@ -26,14 +26,22 @@ function fmtDate(d: Date) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+export interface GoalLine {
+  metricKey: string;
+  value: number;
+  label: string;
+}
+
 export default function TrendChart({
   data,
   metrics,
   height = 200,
+  goalLines = [],
 }: {
   data: DataPoint[];
   metrics: Metric[];
   height?: number;
+  goalLines?: GoalLine[];
 }) {
   const [range, setRange] = useState("3M");
   const [active, setActive] = useState<{ idx: number } | null>(null);
@@ -244,6 +252,20 @@ export default function TrendChart({
             {fmtDate(filtered[idx].date as Date)}
           </text>
         ))}
+
+        {/* Goal reference lines */}
+        {goalLines.map((gl) => {
+          if (!seriesRanges[gl.metricKey]) return null;
+          const gy = yFor(gl.value, gl.metricKey);
+          return (
+            <g key={`goal-${gl.metricKey}`}>
+              <line x1={PAD.l} y1={gy} x2={w - PAD.r} y2={gy} stroke="#b84a2e" strokeWidth="1" strokeDasharray="4,3" opacity={0.6} />
+              <text x={w - PAD.r - 2} y={gy - 3} fontSize="8" fill="#b84a2e" textAnchor="end" fontFamily="Geist, system-ui" fontWeight="600" opacity={0.8}>
+                {gl.label}
+              </text>
+            </g>
+          );
+        })}
 
         {/* Series lines */}
         {visibleMetrics.map((m) => (

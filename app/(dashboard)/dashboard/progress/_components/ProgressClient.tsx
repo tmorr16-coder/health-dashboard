@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import TrendChart from "./TrendChart";
 
 // ── Design tokens ────────────────────────────────────────────────
@@ -181,6 +181,18 @@ export default function ProgressClient({
   feedItems,
 }: ProgressProps) {
   const [tab, setTab] = useState<Tab>("body");
+  const [targetWeightLbs, setTargetWeightLbs] = useState<number | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("health-dashboard-profile");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const t = parseFloat(parsed.targetWeightLbs);
+        if (!isNaN(t) && t > 0) setTargetWeightLbs(t);
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   const bodyData = useMemo(() => {
     return MOCK_WEEKS_AGO.map((weeksAgo, i) => {
@@ -337,6 +349,7 @@ export default function ProgressClient({
               { key: "muscle", label: "Lean mass", color: C_MOSS,   unit: "lb" },
               { key: "fat",    label: "Body fat",  color: C_ACCENT, unit: "%" },
             ]}
+            goalLines={targetWeightLbs != null ? [{ metricKey: "weight", value: targetWeightLbs, label: `Goal ${targetWeightLbs} lb` }] : []}
           />
         </div>
       )}
@@ -555,6 +568,25 @@ export default function ProgressClient({
           <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", marginTop: 4, color: weightDeltaGood ? "var(--color-moss)" : "var(--color-ink-3)" }}>
             {weightDelta}
           </div>
+          {targetWeightLbs != null && (() => {
+            const diff = currentWeight - targetWeightLbs;
+            const reached = diff <= 0;
+            return (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 9, color: "var(--color-ink-4)", marginBottom: 4, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  {reached ? "Goal reached 🎉" : `${Math.abs(diff).toFixed(1)} lb to goal`}
+                </div>
+                <div style={{ height: 4, background: "var(--color-bg-sunk)", borderRadius: 2, overflow: "hidden" }}>
+                  <div style={{
+                    height: "100%", borderRadius: 2,
+                    background: reached ? "var(--color-moss)" : "var(--color-accent)",
+                    width: `${Math.min(100, Math.max(0, reached ? 100 : (1 - diff / Math.max(currentWeight - targetWeightLbs + (withingsDelta30d ?? 5), 1)) * 100))}%`,
+                    transition: "width 600ms ease",
+                  }} />
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         <div

@@ -5,6 +5,7 @@ import ScoreRings from "./_components/ScoreRings";
 import ActivityCard from "./_components/ActivityCard";
 import RecentWorkoutsCard, { type WorkoutRow } from "./_components/RecentWorkoutsCard";
 import ChatWidget from "./_components/ChatWidget";
+import CommunityFeed from "@/app/(dashboard)/_components/CommunityFeed";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -575,6 +576,9 @@ export default async function DashboardPage() {
             )}
           </div>
         </Link>
+
+        {/* Community feed */}
+        <CommunityFeed />
 
         {/* Recent Workouts */}
         <RecentWorkoutsCard workouts={recentWorkouts} />
