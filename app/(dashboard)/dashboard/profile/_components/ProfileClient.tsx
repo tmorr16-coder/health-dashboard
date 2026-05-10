@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
+import { saveProfileGoals } from "../actions";
 
 interface OAuthUser {
   name: string;
@@ -133,9 +134,15 @@ export default function ProfileClient({ withingsWeightLbs }: { withingsWeightLbs
   function save() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
     } catch { /* ignore */ }
+    const targetLbs = parseFloat(profile.targetWeightLbs);
+    const calGoal   = parseFloat(profile.calorieGoal);
+    saveProfileGoals({
+      targetWeightLbs: isNaN(targetLbs) ? null : targetLbs,
+      calorieGoal:     isNaN(calGoal)   ? null : calGoal,
+    }).catch(() => { /* non-blocking */ });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
   }
 
   return (

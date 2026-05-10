@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import ProgressClient from "./_components/ProgressClient";
 
 function toDateStr(d: Date) { return d.toLocaleDateString("sv"); }
@@ -9,7 +10,11 @@ function toDateStr(d: Date) { return d.toLocaleDateString("sv"); }
 export default async function ProgressPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const userId = await getCurrentUserId();
+  const [userId, supabase] = await Promise.all([getCurrentUserId(), createClient()]);
+  const { data: { user } } = await supabase.auth.getUser();
+  const meta = user?.user_metadata ?? {};
+  const serverTargetWeightLbs: number | null =
+    typeof meta.target_weight_lbs === "number" ? meta.target_weight_lbs : null;
 
   const sevenDaysAgo  = new Date(Date.now() - 7  * 86_400_000);
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);
@@ -124,6 +129,7 @@ export default async function ProgressPage() {
       monthWorkouts={workouts.length}
       last7Steps={last7Steps}
       feedItems={feedItems}
+      serverTargetWeightLbs={serverTargetWeightLbs}
     />
   );
 }

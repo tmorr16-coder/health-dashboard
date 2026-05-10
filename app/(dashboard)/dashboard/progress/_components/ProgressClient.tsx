@@ -41,6 +41,7 @@ export interface ProgressProps {
   monthWorkouts: number;
   last7Steps: { day: string; steps: number }[];
   feedItems: FeedItem[];
+  serverTargetWeightLbs: number | null;
 }
 
 function relativeDay(dateStr: string): string {
@@ -179,9 +180,11 @@ export default function ProgressClient({
   monthWorkouts,
   last7Steps,
   feedItems,
+  serverTargetWeightLbs,
 }: ProgressProps) {
   const [tab, setTab] = useState<Tab>("body");
-  const [targetWeightLbs, setTargetWeightLbs] = useState<number | null>(null);
+  // Seed from server (Supabase user_metadata); localStorage overrides if user set it locally
+  const [targetWeightLbs, setTargetWeightLbs] = useState<number | null>(serverTargetWeightLbs);
 
   useEffect(() => {
     try {

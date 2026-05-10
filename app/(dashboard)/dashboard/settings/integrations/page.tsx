@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/auth";
@@ -21,10 +23,16 @@ export default async function IntegrationsPage({
     searchParams,
   ]);
 
+  // Oura token fetched separately — table may not exist yet on some deployments
+  let ouraToken: string | null = null;
+  try {
+    const { data: ouraRow } = await db.from("oura_tokens").select("access_token").eq("user_id", userId).maybeSingle();
+    ouraToken = (ouraRow as { access_token: string } | null)?.access_token ?? null;
+  } catch { /* oura_tokens table not yet created */ }
+
   const [
     { data: tokenRow },
     { data: lastWithingsRow },
-    { data: ouraTokenRow },
     { data: ouraLastRow },
     { data: appleLastRow },
     { count: appleMetricsCount },
@@ -32,8 +40,6 @@ export default async function IntegrationsPage({
   ] = await Promise.all([
     db.from("withings_tokens").select("updated_at").eq("user_id", userId).maybeSingle() as Promise<{ data: TokenRow | null }>,
     db.from("apple_health_metrics").select("created_at").eq("user_id", userId).eq("source", "withings").order("created_at", { ascending: false }).limit(1).maybeSingle() as Promise<{ data: { created_at: string } | null }>,
-    // Per-user Oura token (graceful if table doesn't exist yet)
-    db.from("oura_tokens").select("access_token").eq("user_id", userId).maybeSingle().catch(() => ({ data: null })) as Promise<{ data: { access_token: string } | null }>,
     db.from("apple_health_metrics").select("created_at").eq("user_id", userId).eq("source", "oura").order("created_at", { ascending: false }).limit(1).maybeSingle() as Promise<{ data: { created_at: string } | null }>,
     db.from("apple_health_metrics").select("created_at").eq("user_id", userId).eq("source", "apple_health").order("created_at", { ascending: false }).limit(1).maybeSingle() as Promise<{ data: { created_at: string } | null }>,
     db.from("apple_health_metrics").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("source", "apple_health") as Promise<{ count: number | null }>,
@@ -43,7 +49,6 @@ export default async function IntegrationsPage({
   const connected       = tokenRow !== null;
   const connectedAt     = (tokenRow as TokenRow | null)?.updated_at ?? null;
   const lastSyncAt      = (lastWithingsRow as { created_at: string } | null)?.created_at ?? null;
-  const ouraToken       = (ouraTokenRow as { access_token: string } | null)?.access_token ?? null;
   // Fall back to env var for backward compat (Terry's existing setup)
   const ouraConfigured  = !!ouraToken || !!process.env.OURA_ACCESS_TOKEN;
   const ouraLastSyncAt  = (ouraLastRow as { created_at: string } | null)?.created_at ?? null;
