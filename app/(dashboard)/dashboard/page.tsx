@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId, getCurrentUserName } from "@/lib/auth";
 import ScoreRings from "./_components/ScoreRings";
+import Greeting from "./_components/Greeting";
 import ActivityCard from "./_components/ActivityCard";
 import RecentWorkoutsCard, { type WorkoutRow } from "./_components/RecentWorkoutsCard";
 import ChatWidget from "./_components/ChatWidget";
@@ -238,8 +239,7 @@ export default async function DashboardPage() {
   });
   const todayIdx = (todayStart.getDay() + 6) % 7;
 
-  const today    = formatDate(new Date());
-  const greeting = getGreeting();
+  const today = formatDate(new Date());
 
   const healthSystemContext = `You are a knowledgeable health and fitness coach. Give concise, practical advice about nutrition, exercise, recovery, and wellness. Keep replies to 2-4 sentences unless more detail is genuinely needed. Be direct and specific. The user is tracking their health data including steps, sleep, readiness, and workouts.`;
 
@@ -276,18 +276,7 @@ export default async function DashboardPage() {
           </Link>
         </div>
 
-        <div
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: 34,
-            fontWeight: 400,
-            letterSpacing: "-0.02em",
-            lineHeight: 1.1,
-          }}
-        >
-          {greeting},<br />
-          <span style={{ color: "var(--color-accent)" }}>{userName ?? "there"}.</span>
-        </div>
+        <Greeting name={userName} />
 
         {/* Per-source sync status */}
         {syncSources.length > 0 && (
@@ -505,32 +494,45 @@ export default async function DashboardPage() {
             heartRateBpm={heartRateBpm}
             source={activitySource}
           />
-          <div
-            style={{
-              background: "var(--color-bg-raised)",
-              border: "1px solid var(--color-line)",
-              borderRadius: 14,
-              padding: "16px",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          {scoresFromOura ? (
+            <div
+              style={{
+                background: "var(--color-bg-raised)",
+                border: "1px solid var(--color-line)",
+                borderRadius: 14,
+                padding: "16px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)" }}>
+                  Today&apos;s Scores
+                </div>
+                <div style={{ fontSize: 10, color: "var(--color-ink-4)" }}>via 💍 Oura</div>
+              </div>
+              <ScoreRings scores={SCORES} />
+            </div>
+          ) : (
+            <Link href="/dashboard/settings/integrations" style={{ textDecoration: "none" }}>
               <div
                 style={{
-                  fontSize: 10,
-                  fontWeight: 500,
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  color: "var(--color-ink-3)",
+                  background: "var(--color-bg-raised)",
+                  border: "1px dashed var(--color-line)",
+                  borderRadius: 14,
+                  padding: "16px 18px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
                 }}
               >
-                Today&apos;s Scores
+                <div style={{ fontSize: 28, flexShrink: 0 }}>💍</div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink)", marginBottom: 2 }}>Connect Oura Ring</div>
+                  <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>Readiness, activity & sleep scores</div>
+                </div>
+                <div style={{ marginLeft: "auto", fontSize: 16, color: "var(--color-ink-3)" }}>→</div>
               </div>
-              <div style={{ fontSize: 10, color: "var(--color-ink-4)" }}>
-                {scoresFromOura ? "via 💍 Oura" : "Estimated"}
-              </div>
-            </div>
-            <ScoreRings scores={SCORES} />
-          </div>
+            </Link>
+          )}
         </div>
 
         {/* Nutrition summary */}

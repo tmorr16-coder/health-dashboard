@@ -24,6 +24,7 @@ export default async function IntegrationsPage({
   const [
     { data: tokenRow },
     { data: lastWithingsRow },
+    { data: ouraTokenRow },
     { data: ouraLastRow },
     { data: appleLastRow },
     { count: appleMetricsCount },
@@ -31,21 +32,25 @@ export default async function IntegrationsPage({
   ] = await Promise.all([
     db.from("withings_tokens").select("updated_at").eq("user_id", userId).maybeSingle() as Promise<{ data: TokenRow | null }>,
     db.from("apple_health_metrics").select("created_at").eq("user_id", userId).eq("source", "withings").order("created_at", { ascending: false }).limit(1).maybeSingle() as Promise<{ data: { created_at: string } | null }>,
+    // Per-user Oura token (graceful if table doesn't exist yet)
+    db.from("oura_tokens").select("access_token").eq("user_id", userId).maybeSingle().catch(() => ({ data: null })) as Promise<{ data: { access_token: string } | null }>,
     db.from("apple_health_metrics").select("created_at").eq("user_id", userId).eq("source", "oura").order("created_at", { ascending: false }).limit(1).maybeSingle() as Promise<{ data: { created_at: string } | null }>,
     db.from("apple_health_metrics").select("created_at").eq("user_id", userId).eq("source", "apple_health").order("created_at", { ascending: false }).limit(1).maybeSingle() as Promise<{ data: { created_at: string } | null }>,
     db.from("apple_health_metrics").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("source", "apple_health") as Promise<{ count: number | null }>,
     db.from("apple_health_workouts").select("id", { count: "exact", head: true }).eq("user_id", userId) as Promise<{ count: number | null }>,
   ]);
 
-  const connected           = tokenRow !== null;
-  const connectedAt         = (tokenRow as TokenRow | null)?.updated_at ?? null;
-  const lastSyncAt          = (lastWithingsRow as { created_at: string } | null)?.created_at ?? null;
-  const ouraTokenConfigured = !!process.env.OURA_ACCESS_TOKEN;
-  const ouraLastSyncAt      = (ouraLastRow as { created_at: string } | null)?.created_at ?? null;
-  const appleConfigured     = !!process.env.HEALTH_AUTO_EXPORT_SECRET;
-  const appleLastSyncAt     = (appleLastRow as { created_at: string } | null)?.created_at ?? null;
-  const siteUrl             = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-  const webhookUrl          = `${siteUrl}/api/webhooks/apple-health`;
+  const connected       = tokenRow !== null;
+  const connectedAt     = (tokenRow as TokenRow | null)?.updated_at ?? null;
+  const lastSyncAt      = (lastWithingsRow as { created_at: string } | null)?.created_at ?? null;
+  const ouraToken       = (ouraTokenRow as { access_token: string } | null)?.access_token ?? null;
+  // Fall back to env var for backward compat (Terry's existing setup)
+  const ouraConfigured  = !!ouraToken || !!process.env.OURA_ACCESS_TOKEN;
+  const ouraLastSyncAt  = (ouraLastRow as { created_at: string } | null)?.created_at ?? null;
+  const appleLastSyncAt = (appleLastRow as { created_at: string } | null)?.created_at ?? null;
+  const siteUrl         = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  // Per-user webhook URL — userId tells the endpoint whose data this is
+  const webhookUrl      = `${siteUrl}/api/webhooks/apple-health?userId=${encodeURIComponent(userId)}`;
 
   const successMessage =
     params.connected === "1" ? "Withings connected successfully!" : null;
@@ -139,7 +144,7 @@ export default async function IntegrationsPage({
       {/* Cards */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <AppleHealthCard
-          configured={appleConfigured}
+          configured={appleMetricsCount !== null && appleMetricsCount > 0}
           lastSyncAt={appleLastSyncAt}
           metricsCount={appleMetricsCount ?? 0}
           workoutsCount={appleWorkoutsCount ?? 0}
@@ -152,7 +157,7 @@ export default async function IntegrationsPage({
           successMessage={successMessage}
         />
         <OuraCard
-          tokenConfigured={ouraTokenConfigured}
+          tokenConfigured={ouraConfigured}
           lastSyncAt={ouraLastSyncAt}
         />
       </div>

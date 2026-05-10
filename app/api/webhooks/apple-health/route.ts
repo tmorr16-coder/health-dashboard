@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEV_USER_ID } from "@/lib/auth";
 
+// URL format: /api/webhooks/apple-health?userId=<uuid>
+// The shared HEALTH_AUTO_EXPORT_SECRET authenticates the sender;
+// userId identifies whose data to store.
+
 // ── payload types (Health Auto Export REST format) ────────────────────────────
 // Top-level: { data: { metrics?, workouts? } }
 // Ref: https://github.com/Lybron/health-auto-export
@@ -117,8 +121,9 @@ export async function POST(request: NextRequest) {
   });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db     = createAdminClient() as any;
-  const userId = DEV_USER_ID;
+  const db = createAdminClient() as any;
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get("userId") || DEV_USER_ID;
 
   let metricsInserted  = 0;
   let workoutsInserted = 0;

@@ -33,25 +33,8 @@ async function ouraGet(path: string, params: Record<string, string>, token: stri
   return res.json() as Promise<{ data: Record<string, unknown>[] }>;
 }
 
-export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const auth = request.headers.get("authorization");
-    if (auth !== `Bearer ${cronSecret}`) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
-
-  const token = process.env.OURA_ACCESS_TOKEN;
-  if (!token) {
-    return Response.json({ error: "OURA_ACCESS_TOKEN not configured" }, { status: 400 });
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db     = createAdminClient() as any;
-  const userId = DEV_USER_ID;
-
-  // First sync = last 7 days; subsequent = last 2 days (overlap handles timezone edges)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function syncOneUser(db: any, userId: string, token: string): Promise<number> {
   const { count } = await db
     .from("apple_health_metrics")
     .select("id", { count: "exact", head: true })
@@ -76,32 +59,20 @@ export async function GET(request: NextRequest) {
     ]);
 
   const rows: MetricRow[] = [];
-  const byEndpoint: Record<string, number> = {};
 
-  // ── daily_sleep → sleep_score ────────────────────────────────────────────────
   if (dailySleepResult.status === "fulfilled") {
-    let n = 0;
     for (const item of dailySleepResult.value.data) {
       if (item.score == null) continue;
       rows.push({ user_id: userId, timestamp: `${item.day}T00:00:00Z`, metric_name: "sleep_score", value: item.score as number, unit: "score", source: "oura" });
-      n++;
     }
-    byEndpoint.daily_sleep = n;
-  } else {
-    console.error("[oura/sync] daily_sleep:", dailySleepResult.reason);
-    byEndpoint.daily_sleep = 0;
-  }
+  } else { console.error(`[oura/sync] ${userId} daily_sleep:`, detailSleepResult); }
 
-  // ── sleep (detailed) → duration, stages, HRV, resting HR ────────────────────
   if (detailSleepResult.status === "fulfilled") {
-    let n = 0;
     for (const item of detailSleepResult.value.data) {
       const ts = `${item.day}T00:00:00Z`;
       const push = (metric_name: string, raw: unknown, unit: string, scale = 1) => {
         if (raw == null) return;
-        const value = parseFloat(((raw as number) * scale).toFixed(2));
-        rows.push({ user_id: userId, timestamp: ts, metric_name, value, unit, source: "oura" });
-        n++;
+        rows.push({ user_id: userId, timestamp: ts, metric_name, value: parseFloat(((raw as number) * scale).toFixed(2)), unit, source: "oura" });
       };
       push("sleep_duration_min", item.total_sleep_duration, "min", 1 / 60);
       push("rem_sleep_min",      item.rem_sleep_duration,   "min", 1 / 60);
@@ -109,58 +80,31 @@ export async function GET(request: NextRequest) {
       push("hrv",                item.average_hrv,           "ms");
       push("resting_heart_rate", item.lowest_heart_rate,     "bpm");
     }
-    byEndpoint.sleep = n;
-  } else {
-    console.error("[oura/sync] sleep:", detailSleepResult.reason);
-    byEndpoint.sleep = 0;
   }
 
-  // ── daily_readiness → readiness_score ───────────────────────────────────────
   if (readinessResult.status === "fulfilled") {
-    let n = 0;
     for (const item of readinessResult.value.data) {
       if (item.score == null) continue;
       rows.push({ user_id: userId, timestamp: `${item.day}T00:00:00Z`, metric_name: "readiness_score", value: item.score as number, unit: "score", source: "oura" });
-      n++;
     }
-    byEndpoint.daily_readiness = n;
-  } else {
-    console.error("[oura/sync] daily_readiness:", readinessResult.reason);
-    byEndpoint.daily_readiness = 0;
   }
 
-  // ── daily_activity → activity_score ─────────────────────────────────────────
   if (activityResult.status === "fulfilled") {
-    let n = 0;
     for (const item of activityResult.value.data) {
       if (item.score == null) continue;
       rows.push({ user_id: userId, timestamp: `${item.day}T00:00:00Z`, metric_name: "activity_score", value: item.score as number, unit: "score", source: "oura" });
-      n++;
     }
-    byEndpoint.daily_activity = n;
-  } else {
-    console.error("[oura/sync] daily_activity:", activityResult.reason);
-    byEndpoint.daily_activity = 0;
   }
 
-  // ── heartrate → heart_rate_bpm (sleep/rest only) ────────────────────────────
   if (hrResult.status === "fulfilled") {
-    let n = 0;
     for (const item of hrResult.value.data) {
       if (!["sleep", "rest"].includes(item.source as string)) continue;
       if (item.bpm == null) continue;
       rows.push({ user_id: userId, timestamp: item.timestamp as string, metric_name: "heart_rate_bpm", value: item.bpm as number, unit: "bpm", source: "oura" });
-      n++;
     }
-    byEndpoint.heartrate = n;
-  } else {
-    console.error("[oura/sync] heartrate:", hrResult.reason);
-    byEndpoint.heartrate = 0;
   }
 
-  if (rows.length === 0) {
-    return Response.json({ metrics_inserted: 0, by_endpoint: byEndpoint });
-  }
+  if (rows.length === 0) return 0;
 
   let inserted = 0;
   for (const batch of chunk(rows, 500)) {
@@ -168,11 +112,56 @@ export async function GET(request: NextRequest) {
       .from("apple_health_metrics")
       .upsert(batch, { onConflict: "user_id,timestamp,metric_name,source", ignoreDuplicates: true })
       .select("id");
-    if (error) console.error("[oura/sync] Upsert error:", error.message);
+    if (error) console.error(`[oura/sync] Upsert error for ${userId}:`, error.message);
     else inserted += (data as unknown[]).length;
   }
+  return inserted;
+}
 
-  const result = { metrics_inserted: inserted, by_endpoint: byEndpoint };
+export async function GET(request: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const auth = request.headers.get("authorization");
+    if (auth !== `Bearer ${cronSecret}`) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+
+  const { searchParams } = new URL(request.url);
+  const specificUserId = searchParams.get("userId");
+
+  // Try per-user tokens from DB first
+  const tokenQuery = db.from("oura_tokens").select("user_id, access_token");
+  if (specificUserId) tokenQuery.eq("user_id", specificUserId);
+  const { data: tokenRows } = await tokenQuery;
+
+  // Fall back to env var token for DEV_USER_ID (backward compat)
+  type OuraTokenRow = { user_id: string; access_token: string };
+  let usersToSync: OuraTokenRow[] = (tokenRows as OuraTokenRow[] | null) ?? [];
+
+  const envToken = process.env.OURA_ACCESS_TOKEN;
+  if (envToken && usersToSync.length === 0 && (!specificUserId || specificUserId === DEV_USER_ID)) {
+    usersToSync = [{ user_id: DEV_USER_ID, access_token: envToken }];
+  }
+
+  if (usersToSync.length === 0) {
+    return Response.json({ metrics_inserted: 0, users_synced: 0 });
+  }
+
+  let totalInserted = 0;
+  for (const { user_id, access_token } of usersToSync) {
+    try {
+      const inserted = await syncOneUser(db, user_id, access_token);
+      totalInserted += inserted;
+    } catch (err) {
+      console.error(`[oura/sync] Failed for user ${user_id}:`, err);
+    }
+  }
+
+  const result = { metrics_inserted: totalInserted, users_synced: usersToSync.length };
   console.log("[oura/sync] Complete:", result);
   return Response.json(result);
 }
