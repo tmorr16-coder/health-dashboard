@@ -48,96 +48,63 @@ export default function WithingsCard({ connected, connectedAt, lastSyncAt, succe
     });
   }
 
+  // suppress unused warning — connectedAt available if needed for future display
+  void connectedAt;
+
   return (
-    <div
-      style={{
-        background: "var(--color-bg-raised)",
-        border: "1px solid var(--color-line)",
-        borderRadius: 14,
-        overflow: "hidden",
-      }}
-    >
-      {/* Header row */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          padding: "14px 16px",
-          borderBottom: connected ? "1px solid var(--color-line)" : undefined,
-        }}
-      >
+    <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, overflow: "hidden" }}>
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: "1px solid var(--color-line)" }}>
         <div style={{ fontSize: 24, lineHeight: 1 }}>⚖️</div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 500, color: "var(--color-ink)" }}>
-            Withings
-          </div>
-          <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 1 }}>
-            Weight · body composition · blood pressure · SpO₂
-          </div>
+          <div style={{ fontSize: 14, fontWeight: 500, color: "var(--color-ink)" }}>Withings</div>
+          <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 1 }}>Weight · body composition · blood pressure · SpO₂</div>
         </div>
-        <div
-          style={{
-            fontSize: 10,
-            fontWeight: 600,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            padding: "4px 10px",
-            borderRadius: 999,
-            background: connected ? "var(--color-moss-soft)" : "var(--color-bg-sunk)",
-            color: connected ? "var(--color-moss)" : "var(--color-ink-4)",
-            border: `1px solid ${connected ? "var(--color-moss)" : "var(--color-line)"}`,
-            whiteSpace: "nowrap",
-          }}
-        >
+        <div style={{
+          fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase",
+          padding: "4px 10px", borderRadius: 999, whiteSpace: "nowrap",
+          background: connected ? "var(--color-moss-soft)" : "var(--color-bg-sunk)",
+          color: connected ? "var(--color-moss)" : "var(--color-ink-4)",
+          border: `1px solid ${connected ? "var(--color-moss)" : "var(--color-line)"}`,
+        }}>
           {connected ? "Connected" : "Not connected"}
         </div>
       </div>
 
-      {/* Meta + toasts */}
-      {connected && (lastSyncAt || successMessage || syncMsg || syncErr) && (
-        <div style={{ padding: "10px 16px 0" }}>
-          {lastSyncAt && (
-            <div style={{ fontSize: 12, color: "var(--color-moss)", marginBottom: 10 }}>
-              Last data {relativeTime(lastSyncAt)}
+      {/* Stats — only when connected */}
+      {connected && lastSyncAt && (
+        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--color-line)" }}>
+          <div style={{ flex: 1, padding: "12px 14px" }}>
+            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 3 }}>
+              Last sync
             </div>
-          )}
-          {(successMessage || syncMsg) && (
-            <div
-              style={{
-                background: "var(--color-moss-soft)",
-                border: "1px solid var(--color-moss)",
-                borderRadius: 8,
-                padding: "8px 12px",
-                fontSize: 12,
-                color: "var(--color-moss)",
-                marginBottom: 10,
-              }}
-            >
-              ✓ {successMessage ?? syncMsg}
+            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)" }}>
+              {relativeTime(lastSyncAt)}
             </div>
-          )}
-          {syncErr && (
-            <div
-              style={{
-                background: "var(--color-accent-soft)",
-                border: "1px solid var(--color-accent)",
-                borderRadius: 8,
-                padding: "8px 12px",
-                fontSize: 12,
-                color: "var(--color-accent)",
-                marginBottom: 10,
-              }}
-            >
-              {syncErr}
-            </div>
-          )}
+          </div>
         </div>
       )}
 
-      {/* Actions */}
-      <div style={{ padding: "12px 16px", display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {!connected ? (
+      {/* Body */}
+      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.6 }}>
+          {connected
+            ? "Data syncs automatically. Tap Sync Now to pull the latest measurements."
+            : "Connect your Withings scale or device to automatically sync weight and body composition data."}
+        </div>
+
+        {/* Setup steps */}
+        {!connected && (
+          <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.8, display: "flex", flexDirection: "column", gap: 2 }}>
+            <li>Download <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Health Mate</span> from the App Store and create a Withings account.</li>
+            <li>Follow the in-app instructions to pair your Withings device.</li>
+            <li>Tap <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Connect Withings</span> below to authorize access.</li>
+          </ol>
+        )}
+
+        {/* Connect button — not connected */}
+        {!connected && (
           <a
             href="/api/withings/connect"
             style={{
@@ -149,48 +116,46 @@ export default function WithingsCard({ connected, connectedAt, lastSyncAt, succe
               fontSize: 13,
               fontWeight: 600,
               textDecoration: "none",
+              alignSelf: "flex-start",
               opacity: isPending ? 0.5 : 1,
             }}
           >
             Connect Withings
           </a>
-        ) : (
+        )}
+
+        {/* Connected actions */}
+        {connected && (
           <>
-            <button
-              onClick={handleSync}
-              disabled={isPending}
-              style={{
-                padding: "10px 18px",
-                borderRadius: 10,
-                border: "none",
+            {(successMessage || syncMsg) && (
+              <div style={{ background: "var(--color-moss-soft)", border: "1px solid var(--color-moss)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--color-moss)" }}>
+                ✓ {successMessage ?? syncMsg}
+              </div>
+            )}
+            {syncErr && (
+              <div style={{ background: "var(--color-accent-soft)", border: "1px solid var(--color-accent)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--color-accent)" }}>
+                {syncErr}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={handleSync} disabled={isPending} style={{
+                padding: "10px 18px", borderRadius: 10, border: "none",
                 background: isPending ? "var(--color-bg-sunk)" : "var(--color-ink)",
                 color: isPending ? "var(--color-ink-4)" : "var(--color-bg)",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: isPending ? "wait" : "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              {isPending ? "Syncing…" : "Sync Now"}
-            </button>
-            <button
-              onClick={handleDisconnect}
-              disabled={isPending}
-              style={{
-                padding: "10px 18px",
-                borderRadius: 10,
-                border: "1px solid var(--color-line-2)",
-                background: "transparent",
-                color: "var(--color-accent)",
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: isPending ? "wait" : "pointer",
-                fontFamily: "inherit",
+                fontSize: 13, fontWeight: 600, cursor: isPending ? "wait" : "pointer", fontFamily: "inherit",
+              }}>
+                {isPending ? "Syncing…" : "Sync Now"}
+              </button>
+              <button onClick={handleDisconnect} disabled={isPending} style={{
+                padding: "10px 18px", borderRadius: 10,
+                border: "1px solid var(--color-line)",
+                background: "transparent", color: "var(--color-ink-3)",
+                fontSize: 13, fontWeight: 500, cursor: isPending ? "wait" : "pointer", fontFamily: "inherit",
                 opacity: isPending ? 0.5 : 1,
-              }}
-            >
-              Disconnect
-            </button>
+              }}>
+                Disconnect
+              </button>
+            </div>
           </>
         )}
       </div>

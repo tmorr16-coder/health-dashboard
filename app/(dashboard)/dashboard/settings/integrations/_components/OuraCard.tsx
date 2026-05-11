@@ -78,13 +78,76 @@ export default function OuraCard({ tokenConfigured, lastSyncAt }: Props) {
         </div>
       </div>
 
+      {/* Stats — only when connected */}
+      {tokenConfigured && lastSyncAt && (
+        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--color-line)" }}>
+          <div style={{ flex: 1, padding: "12px 14px" }}>
+            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 3 }}>
+              Last sync
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)" }}>
+              {relativeTime(lastSyncAt)}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Body */}
-      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
-        {tokenConfigured ? (
-          <>
-            {lastSyncAt && !syncMsg && (
-              <div style={{ fontSize: 12, color: "var(--color-moss)" }}>Last data {relativeTime(lastSyncAt)}</div>
+      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.6 }}>
+          {tokenConfigured
+            ? "Data syncs automatically each day. Tap Sync Now to pull the latest."
+            : "Connect your Oura Ring using a Personal Access Token to sync sleep, readiness, and HRV data."}
+        </div>
+
+        {/* Setup steps */}
+        {!tokenConfigured && (
+          <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.8, display: "flex", flexDirection: "column", gap: 2 }}>
+            <li>Sign in at <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>cloud.ouraring.com</span>.</li>
+            <li>Go to <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Account → Personal Access Tokens</span> → Create new token.</li>
+            <li>Copy the token and paste it below.</li>
+          </ol>
+        )}
+
+        {/* Token input — not connected */}
+        {!tokenConfigured && (
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 5 }}>
+              Personal access token
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="password"
+                value={tokenInput}
+                onChange={(e) => setTokenInput(e.target.value)}
+                placeholder="Paste token here…"
+                style={{
+                  flex: 1, padding: "10px 12px", borderRadius: 10,
+                  border: "1px solid var(--color-line)", background: "var(--color-bg-sunk)",
+                  color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", outline: "none",
+                }}
+              />
+              <button onClick={handleSave} disabled={isPending || !tokenInput.trim()} style={{
+                padding: "10px 16px", borderRadius: 10, border: "none",
+                background: tokenInput.trim() ? "var(--color-ink)" : "var(--color-bg-sunk)",
+                color: tokenInput.trim() ? "var(--color-bg)" : "var(--color-ink-4)",
+                fontSize: 13, fontWeight: 600, cursor: tokenInput.trim() ? "pointer" : "default", fontFamily: "inherit",
+                whiteSpace: "nowrap",
+              }}>
+                {isPending ? "Saving…" : "Save"}
+              </button>
+            </div>
+            {saveErr && (
+              <div style={{ background: "var(--color-accent-soft)", border: "1px solid var(--color-accent)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--color-accent)", marginTop: 8 }}>
+                {saveErr}
+              </div>
             )}
+          </div>
+        )}
+
+        {/* Connected actions */}
+        {tokenConfigured && (
+          <>
             {syncMsg && (
               <div style={{ background: "var(--color-moss-soft)", border: "1px solid var(--color-moss)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--color-moss)" }}>
                 ✓ {syncMsg}
@@ -112,41 +175,6 @@ export default function OuraCard({ tokenConfigured, lastSyncAt }: Props) {
                 Disconnect
               </button>
             </div>
-          </>
-        ) : (
-          <>
-            <div style={{ fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.6 }}>
-              Enter your Oura Personal Access Token to sync sleep, readiness, and HRV data.
-              Generate one at{" "}
-              <span style={{ color: "var(--color-accent)", fontWeight: 500 }}>cloud.ouraring.com → Personal Access Tokens</span>.
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                type="password"
-                value={tokenInput}
-                onChange={(e) => setTokenInput(e.target.value)}
-                placeholder="Paste token here…"
-                style={{
-                  flex: 1, padding: "10px 12px", borderRadius: 10,
-                  border: "1px solid var(--color-line)", background: "var(--color-bg-sunk)",
-                  color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", outline: "none",
-                }}
-              />
-              <button onClick={handleSave} disabled={isPending || !tokenInput.trim()} style={{
-                padding: "10px 16px", borderRadius: 10, border: "none",
-                background: tokenInput.trim() ? "var(--color-ink)" : "var(--color-bg-sunk)",
-                color: tokenInput.trim() ? "var(--color-bg)" : "var(--color-ink-4)",
-                fontSize: 13, fontWeight: 600, cursor: tokenInput.trim() ? "pointer" : "default", fontFamily: "inherit",
-                whiteSpace: "nowrap",
-              }}>
-                {isPending ? "Saving…" : "Save"}
-              </button>
-            </div>
-            {saveErr && (
-              <div style={{ background: "var(--color-accent-soft)", border: "1px solid var(--color-accent)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "var(--color-accent)" }}>
-                {saveErr}
-              </div>
-            )}
           </>
         )}
       </div>
