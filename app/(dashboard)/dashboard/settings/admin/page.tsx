@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/auth";
-import AdminClient, { type AdminUser, type Invitation, type IntegrationRequest } from "./_components/AdminClient";
+import AdminClient, { type AdminUser, type Invitation, type IntegrationRequest, type PendingUser, type SupportTicket } from "./_components/AdminClient";
 
 export default async function AdminPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,6 +66,51 @@ export default async function AdminPage() {
     invitedAt: r.invited_at,
   }));
 
+  // Fetch pending users awaiting approval
+  type PendingRow = { id: string; email: string | null; full_name: string | null; created_at: string };
+  let pendingUsers: PendingUser[] = [];
+  try {
+    const { data: pendingRows } = await db
+      .from("profiles")
+      .select("id, email, full_name, created_at")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true });
+
+    // Enrich with auth metadata (avatar, full name from Google)
+    const authUserMap = new Map<string, AuthUser>(((authUsers as AuthUser[]) ?? []).map((u) => [u.id, u]));
+    pendingUsers = ((pendingRows as PendingRow[]) ?? []).map((p) => {
+      const au = authUserMap.get(p.id);
+      return {
+        id: p.id,
+        email: au?.email ?? p.email ?? "",
+        name: au?.user_metadata?.full_name ?? au?.user_metadata?.name ?? p.full_name ?? "",
+        avatarUrl: au?.user_metadata?.avatar_url ?? au?.user_metadata?.picture ?? null,
+        createdAt: p.created_at,
+      };
+    });
+  } catch { /* status column may not exist yet */ }
+
+  // Fetch open support tickets
+  type TicketRow = { id: string; user_name: string | null; user_email: string | null; type: string; subject: string; description: string; status: string; created_at: string };
+  let supportTickets: SupportTicket[] = [];
+  try {
+    const { data: ticketRows } = await db
+      .from("support_tickets")
+      .select("id, user_name, user_email, type, subject, description, status, created_at")
+      .in("status", ["open", "in_progress"])
+      .order("created_at", { ascending: false });
+    supportTickets = ((ticketRows as TicketRow[]) ?? []).map((t) => ({
+      id: t.id,
+      userName: t.user_name ?? "",
+      userEmail: t.user_email ?? "",
+      type: t.type as SupportTicket["type"],
+      subject: t.subject,
+      description: t.description,
+      status: t.status as SupportTicket["status"],
+      createdAt: t.created_at,
+    }));
+  } catch { /* table may not exist yet */ }
+
   // Fetch integration requests (pending + planned, newest first)
   type ReqRow = { id: string; user_name: string | null; user_email: string | null; integration: string; description: string | null; status: string; created_at: string };
   let integrationRequests: IntegrationRequest[] = [];
@@ -108,7 +153,13 @@ export default async function AdminPage() {
         Manage users, send invitations, and control access.
       </div>
 
-      <AdminClient users={users} invitations={invitations} integrationRequests={integrationRequests} />
+      <AdminClient
+        users={users}
+        invitations={invitations}
+        integrationRequests={integrationRequests}
+        pendingUsers={pendingUsers}
+        supportTickets={supportTickets}
+      />
 
     </div>
   );

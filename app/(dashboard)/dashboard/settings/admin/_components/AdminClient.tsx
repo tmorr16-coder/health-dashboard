@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { inviteUser, cancelInvitation, updateUserRole, removeUser, updateIntegrationRequestStatus } from "../actions";
+import { inviteUser, cancelInvitation, updateUserRole, removeUser, updateIntegrationRequestStatus, approveUser, rejectUser, updateTicketStatus } from "../actions";
 
 export interface AdminUser {
   id: string;
@@ -19,6 +19,25 @@ export interface Invitation {
   email: string;
   role: "admin" | "standard";
   invitedAt: string;
+}
+
+export interface PendingUser {
+  id: string;
+  email: string;
+  name: string;
+  avatarUrl: string | null;
+  createdAt: string;
+}
+
+export interface SupportTicket {
+  id: string;
+  userName: string;
+  userEmail: string;
+  type: "bug" | "feature" | "question" | "other";
+  subject: string;
+  description: string;
+  status: "open" | "in_progress" | "resolved" | "closed";
+  createdAt: string;
 }
 
 export interface IntegrationRequest {
@@ -150,14 +169,18 @@ interface Props {
   users: AdminUser[];
   invitations: Invitation[];
   integrationRequests: IntegrationRequest[];
+  pendingUsers: PendingUser[];
+  supportTickets: SupportTicket[];
 }
 
-export default function AdminClient({ users: initialUsers, invitations: initialInvites, integrationRequests: initialRequests }: Props) {
+export default function AdminClient({ users: initialUsers, invitations: initialInvites, integrationRequests: initialRequests, pendingUsers: initialPending, supportTickets: initialTickets }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [users, setUsers] = useState(initialUsers);
   const [invitations, setInvitations] = useState(initialInvites);
   const [requests, setRequests] = useState(initialRequests);
+  const [pending, setPending] = useState(initialPending);
+  const [tickets, setTickets] = useState(initialTickets);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"standard" | "admin">("standard");
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -211,6 +234,31 @@ export default function AdminClient({ users: initialUsers, invitations: initialI
     });
   }
 
+  function handleApprove(userId: string) {
+    startTransition(async () => {
+      const result = await approveUser(userId);
+      if (result.error) { setActionError(result.error); return; }
+      setPending((prev) => prev.filter((u) => u.id !== userId));
+      router.refresh();
+    });
+  }
+
+  function handleReject(userId: string) {
+    startTransition(async () => {
+      const result = await rejectUser(userId);
+      if (result.error) { setActionError(result.error); return; }
+      setPending((prev) => prev.filter((u) => u.id !== userId));
+      router.refresh();
+    });
+  }
+
+  function handleTicketStatus(id: string, status: "in_progress" | "resolved" | "closed") {
+    startTransition(async () => {
+      await updateTicketStatus(id, status);
+      setTickets((prev) => prev.filter((t) => t.id !== id));
+    });
+  }
+
   const sectionLabel: React.CSSProperties = {
     fontSize: 10, fontWeight: 500, letterSpacing: "0.14em",
     textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 10,
@@ -223,6 +271,97 @@ export default function AdminClient({ users: initialUsers, invitations: initialI
       {actionError && (
         <div style={{ background: "var(--color-accent-soft)", border: "1px solid var(--color-accent)", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "var(--color-accent)" }}>
           {actionError}
+        </div>
+      )}
+
+      {/* Pending approvals */}
+      {pending.length > 0 && (
+        <div>
+          <div style={{ ...sectionLabel, color: "var(--color-accent)" }}>
+            Pending approval · {pending.length}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {pending.map((u) => (
+              <div key={u.id} style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-accent)", borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                <Avatar name={u.name || u.email} avatarUrl={u.avatarUrl} size={40} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginBottom: 2 }}>
+                    {u.name || "—"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--color-ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
+                  <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 2 }}>Signed up {fmtDate(u.createdAt)}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button
+                    disabled={isPending}
+                    onClick={() => handleApprove(u.id)}
+                    style={{ padding: "7px 12px", borderRadius: 8, border: "none", background: "var(--color-moss)", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    disabled={isPending}
+                    onClick={() => handleReject(u.id)}
+                    style={{ padding: "7px 10px", borderRadius: 8, border: "1px solid var(--color-line)", background: "transparent", color: "var(--color-accent)", fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Support tickets */}
+      {tickets.length > 0 && (
+        <div>
+          <div style={sectionLabel}>Support tickets · {tickets.length}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {tickets.map((t) => {
+              const typeColors: Record<string, string> = { bug: "var(--color-accent)", feature: "var(--color-moss)", question: "var(--color-slate)", other: "var(--color-ink-3)" };
+              const typeLabel: Record<string, string> = { bug: "Bug", feature: "Feature", question: "Question", other: "Other" };
+              return (
+                <div key={t.id} style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 12, padding: "12px 14px" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>{t.subject}</span>
+                        <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", padding: "2px 7px", borderRadius: 999, background: "var(--color-bg-sunk)", color: typeColors[t.type] ?? "var(--color-ink-3)", border: `1px solid ${typeColors[t.type] ?? "var(--color-line)"}` }}>
+                          {typeLabel[t.type] ?? t.type}
+                        </span>
+                        <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", padding: "2px 7px", borderRadius: 999, background: t.status === "in_progress" ? "var(--color-accent-soft)" : "var(--color-bg-sunk)", color: t.status === "in_progress" ? "var(--color-accent)" : "var(--color-ink-4)", border: "1px solid var(--color-line)" }}>
+                          {t.status === "in_progress" ? "In progress" : "Open"}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: "var(--color-ink-3)", marginBottom: 2 }}>
+                        {t.userName || t.userEmail} · {fmtDate(t.createdAt)}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--color-ink-2)", background: "var(--color-bg-sunk)", borderRadius: 8, padding: "8px 10px", marginBottom: 10, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                    {t.description}
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {t.status === "open" && (
+                      <button onClick={() => handleTicketStatus(t.id, "in_progress")} disabled={isPending}
+                        style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid var(--color-accent)", background: "var(--color-accent-soft)", color: "var(--color-accent)", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                        Start working
+                      </button>
+                    )}
+                    <button onClick={() => handleTicketStatus(t.id, "resolved")} disabled={isPending}
+                      style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid var(--color-moss)", background: "var(--color-moss-soft)", color: "var(--color-moss)", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                      Resolve
+                    </button>
+                    <button onClick={() => handleTicketStatus(t.id, "closed")} disabled={isPending}
+                      style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid var(--color-line)", background: "transparent", color: "var(--color-ink-3)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>
+                      Close
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

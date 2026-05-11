@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
 import Link from "next/link";
 import { saveProfileGoals, deleteMyAccount } from "../actions";
+import { submitSupportTicket } from "../../settings/admin/actions";
 
 interface OAuthUser {
   name: string;
@@ -85,6 +86,12 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
+  const [ticketType, setTicketType] = useState<"bug" | "feature" | "question" | "other">("question");
+  const [ticketSubject, setTicketSubject] = useState("");
+  const [ticketDesc, setTicketDesc] = useState("");
+  const [ticketSent, setTicketSent] = useState(false);
+  const [ticketError, setTicketError] = useState<string | null>(null);
+  const [ticketSending, setTicketSending] = useState(false);
 
   useEffect(() => {
     try {
@@ -136,6 +143,21 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
       return { ...p, dietary: next };
     });
     setSaved(false);
+  }
+
+  function handleTicketSubmit() {
+    if (!ticketSubject.trim() || !ticketDesc.trim()) return;
+    setTicketError(null);
+    setTicketSending(true);
+    startTransition(async () => {
+      const result = await submitSupportTicket({ type: ticketType, subject: ticketSubject, description: ticketDesc });
+      setTicketSending(false);
+      if (result.error) { setTicketError(result.error); return; }
+      setTicketSent(true);
+      setTicketSubject("");
+      setTicketDesc("");
+      setTimeout(() => setTicketSent(false), 4000);
+    });
   }
 
   function handleDeleteAccount() {
@@ -300,6 +322,48 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
         >
           Sign out
         </button>
+
+        {/* Help & Support */}
+        <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, padding: "16px" }}>
+          <div style={{ ...fieldLabel, marginBottom: 14 }}>Help &amp; Support</div>
+          {ticketSent ? (
+            <div style={{ background: "var(--color-moss-soft)", border: "1px solid var(--color-moss)", borderRadius: 10, padding: "12px 14px", fontSize: 13, color: "var(--color-moss)", lineHeight: 1.5 }}>
+              ✓ Ticket submitted — we&apos;ll be in touch soon.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <div style={fieldLabel}>Type</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {(["question", "bug", "feature", "other"] as const).map((t) => {
+                    const labels = { question: "Question", bug: "Bug", feature: "Feature request", other: "Other" };
+                    return (
+                      <button key={t} onClick={() => setTicketType(t)} style={{ padding: "6px 12px", borderRadius: 8, border: `1px solid ${ticketType === t ? "var(--color-accent)" : "var(--color-line)"}`, background: ticketType === t ? "var(--color-accent-soft)" : "var(--color-bg-sunk)", color: ticketType === t ? "var(--color-accent)" : "var(--color-ink-3)", fontSize: 12, fontWeight: ticketType === t ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
+                        {labels[t]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <div style={fieldLabel}>Subject</div>
+                <input value={ticketSubject} onChange={(e) => setTicketSubject(e.target.value)} placeholder="Brief summary" style={fieldInput} />
+              </div>
+              <div>
+                <div style={fieldLabel}>Details</div>
+                <textarea value={ticketDesc} onChange={(e) => setTicketDesc(e.target.value)} placeholder="Describe the issue or request…" rows={3} style={{ ...fieldInput, resize: "none", lineHeight: 1.5 }} />
+              </div>
+              {ticketError && <div style={{ fontSize: 12, color: "var(--color-accent)" }}>{ticketError}</div>}
+              <button
+                onClick={handleTicketSubmit}
+                disabled={ticketSending || !ticketSubject.trim() || !ticketDesc.trim()}
+                style={{ width: "100%", padding: "12px", borderRadius: 10, border: "none", background: (ticketSubject.trim() && ticketDesc.trim()) ? "var(--color-ink)" : "var(--color-bg-sunk)", color: (ticketSubject.trim() && ticketDesc.trim()) ? "var(--color-bg)" : "var(--color-ink-4)", fontSize: 14, fontWeight: 600, cursor: (ticketSubject.trim() && ticketDesc.trim()) ? "pointer" : "default", fontFamily: "inherit" }}
+              >
+                {ticketSending ? "Sending…" : "Submit ticket"}
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Admin panel link — only visible to admins */}
         {isAdmin && (
