@@ -55,6 +55,10 @@ function ZepboundCard() {
   const [editingSite, setEditingSite] = useState(false);
   const [editHistory, setEditHistory] = useState(false);
   const [editingLogDate, setEditingLogDate] = useState<string | null>(null);
+  const [showBackdate, setShowBackdate] = useState(false);
+  const [backdateDate, setBackdateDate] = useState("");
+  const [backdateDose, setBackdateDose] = useState<number | null>(null);
+  const [backdateSite, setBackdateSite] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -77,6 +81,24 @@ function ZepboundCard() {
     const site = INJECTION_SITES[data.siteIndex];
     const nextSiteIndex = (data.siteIndex + 1) % INJECTION_SITES.length;
     save({ ...data, siteIndex: nextSiteIndex, logs: [...data.logs, { date: today, dose: data.dose, site }] });
+  }
+
+  function openBackdate() {
+    if (!data) return;
+    setBackdateDate("");
+    setBackdateDose(data.dose);
+    setBackdateSite(INJECTION_SITES[data.siteIndex]);
+    setShowBackdate(true);
+  }
+
+  function saveBackdate() {
+    if (!data || !backdateDate || !backdateDose || !backdateSite) return;
+    const alreadyLogged = data.logs.some((l) => l.date === backdateDate);
+    if (alreadyLogged) return;
+    const newLog: ZepboundLog = { date: backdateDate, dose: backdateDose, site: backdateSite };
+    const sorted = [...data.logs, newLog].sort((a, b) => a.date.localeCompare(b.date));
+    save({ ...data, logs: sorted });
+    setShowBackdate(false);
   }
 
   function deleteLog(date: string) {
@@ -283,6 +305,61 @@ function ZepboundCard() {
         </div>
       )}
 
+      {/* Backdate form */}
+      {showBackdate && data && (
+        <div style={{ margin: "0 16px 12px", background: "var(--color-bg-sunk)", border: "1px solid var(--color-line)", borderRadius: 10, padding: "12px" }}>
+          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 10 }}>
+            Log a past dose
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 5 }}>Date</div>
+            <input
+              type="date"
+              value={backdateDate}
+              max={new Date().toLocaleDateString("sv")}
+              onChange={(e) => setBackdateDate(e.target.value)}
+              style={{ width: "100%", padding: "9px 10px", borderRadius: 8, border: "1px solid var(--color-line)", background: "var(--color-bg-raised)", color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+            />
+            {backdateDate && data.logs.some((l) => l.date === backdateDate) && (
+              <div style={{ fontSize: 11, color: "var(--color-accent)", marginTop: 4 }}>Already logged on this date</div>
+            )}
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 5 }}>Dose</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {ZEPBOUND_DOSES.map((d) => (
+                <button key={d} onClick={() => setBackdateDose(d)}
+                  style={{ padding: "5px 10px", borderRadius: 7, border: `1px solid ${backdateDose === d ? "var(--color-accent)" : "var(--color-line)"}`, background: backdateDose === d ? "var(--color-accent-soft)" : "var(--color-bg-raised)", color: backdateDose === d ? "var(--color-accent)" : "var(--color-ink-2)", fontSize: 12, fontWeight: backdateDose === d ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
+                  {d} mg
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 5 }}>Injection site</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {INJECTION_SITES.map((s) => (
+                <button key={s} onClick={() => setBackdateSite(s)}
+                  style={{ padding: "5px 10px", borderRadius: 7, border: `1px solid ${backdateSite === s ? "var(--color-slate)" : "var(--color-line)"}`, background: backdateSite === s ? "var(--color-slate-soft)" : "var(--color-bg-raised)", color: backdateSite === s ? "var(--color-slate)" : "var(--color-ink-2)", fontSize: 12, fontWeight: backdateSite === s ? 600 : 400, cursor: "pointer", fontFamily: "inherit" }}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={saveBackdate}
+              disabled={!backdateDate || !backdateDose || !backdateSite || data.logs.some((l) => l.date === backdateDate)}
+              style={{ flex: 1, padding: "9px", borderRadius: 8, border: "none", background: (backdateDate && backdateDose && backdateSite && !data.logs.some((l) => l.date === backdateDate)) ? "var(--color-moss)" : "var(--color-bg-raised)", color: (backdateDate && backdateDose && backdateSite && !data.logs.some((l) => l.date === backdateDate)) ? "#fff" : "var(--color-ink-4)", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              Save
+            </button>
+            <button onClick={() => setShowBackdate(false)} style={{ padding: "9px 14px", borderRadius: 8, border: "1px solid var(--color-line)", background: "transparent", color: "var(--color-ink-3)", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Config buttons */}
       <div style={{ padding: "0 16px 12px", display: "flex", gap: 8 }}>
         <button
@@ -308,6 +385,18 @@ function ZepboundCard() {
           }}
         >
           Change day
+        </button>
+        <button
+          onClick={openBackdate}
+          style={{
+            padding: "6px 12px", borderRadius: 8,
+            border: "1px solid var(--color-line)",
+            background: showBackdate ? "var(--color-ink)" : "var(--color-bg-sunk)",
+            color: showBackdate ? "var(--color-bg)" : "var(--color-ink-3)",
+            fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+          }}
+        >
+          Log past dose
         </button>
       </div>
 

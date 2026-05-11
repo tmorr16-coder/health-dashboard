@@ -11,15 +11,18 @@ export async function quickLogWorkout(data: {
   type: string;
   durationMin: number;
   notes: string | null;
+  date?: string | null;         // YYYY-MM-DD; defaults to today if omitted
   distanceMiles?: number | null;
   effort?: string | null;
 }): Promise<{ error?: string }> {
   const db: AnyClient = createAdminClient();
   const userId = await getCurrentUserId();
 
+  const date = data.date ?? new Date().toLocaleDateString("sv");
+
   const { error } = await db.from("workout_sessions").insert({
     user_id: userId,
-    date: new Date().toLocaleDateString("sv"),
+    date,
     type: data.type,
     duration_min: data.durationMin,
     notes: data.notes,

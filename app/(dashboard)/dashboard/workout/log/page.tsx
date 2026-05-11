@@ -42,6 +42,8 @@ const fieldLabel: React.CSSProperties = {
   marginBottom: 6,
 };
 
+const todayStr = () => new Date().toLocaleDateString("sv"); // YYYY-MM-DD in local time
+
 export default function QuickLogPage() {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -52,11 +54,13 @@ export default function QuickLogPage() {
   const [distance, setDistance] = useState("");
   const [effort, setEffort] = useState("");
   const [notes, setNotes] = useState("");
+  const [date, setDate] = useState(todayStr);
   const [saving, setSaving] = useState(false);
 
   const workoutLabel = type === "Other" ? customType.trim() : type;
   const showDistance = DISTANCE_TYPES.has(type);
   const valid = workoutLabel.length > 0 && parseInt(duration) > 0;
+  const isBackdated = date !== todayStr();
 
   function handleSave() {
     if (!valid) return;
@@ -66,6 +70,7 @@ export default function QuickLogPage() {
         type: workoutLabel,
         durationMin: parseInt(duration),
         notes: notes.trim() || null,
+        date,
         distanceMiles: showDistance && distance ? parseFloat(distance) : null,
         effort: effort || null,
       });
@@ -115,12 +120,37 @@ export default function QuickLogPage() {
           marginBottom: 24,
         }}
       >
-        Log today&apos;s
+        {isBackdated ? "Log a past" : "Log today’s"}
         <br />
         <span style={{ color: "var(--color-accent)" }}>workout.</span>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+        {/* Date */}
+        <div>
+          <div style={fieldLabel}>
+            Date{isBackdated && <span style={{ color: "var(--color-accent)", marginLeft: 6 }}>· backdated</span>}
+          </div>
+          <input
+            type="date"
+            value={date}
+            max={todayStr()}
+            onChange={(e) => setDate(e.target.value || todayStr())}
+            style={{
+              width: "100%",
+              padding: "11px 12px",
+              borderRadius: 10,
+              border: `1px solid ${isBackdated ? "var(--color-accent)" : "var(--color-line)"}`,
+              background: "var(--color-bg-sunk)",
+              color: "var(--color-ink)",
+              fontSize: 14,
+              fontFamily: "inherit",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
 
         {/* Workout type chips */}
         <div>
