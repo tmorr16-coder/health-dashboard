@@ -18,6 +18,7 @@ export async function inviteUser(
   email: string,
   role: "standard" | "admin"
 ): Promise<{ error?: string }> {
+  // requireAdmin ensures the caller is an admin — only admins may grant admin role
   const { db, currentUserId } = await requireAdmin();
 
   const { error: inviteError } = await db.auth.admin.inviteUserByEmail(email.toLowerCase().trim(), {
@@ -45,7 +46,12 @@ export async function updateUserRole(
   userId: string,
   role: "standard" | "admin"
 ): Promise<{ error?: string }> {
-  const { db } = await requireAdmin();
+  // Double-lock: requireAdmin() verifies the caller is admin before any role change.
+  // Setting role='admin' is therefore only possible by an existing admin.
+  const { db, currentUserId } = await requireAdmin();
+  if (userId === currentUserId && role !== "admin") {
+    return { error: "You cannot remove your own admin role." };
+  }
   const { error } = await db.from("profiles").update({ role }).eq("id", userId);
   if (error) return { error: error.message };
   return {};
