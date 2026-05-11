@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
-import { saveProfileGoals } from "../actions";
+import Link from "next/link";
+import { saveProfileGoals, deleteMyAccount } from "../actions";
 
 interface OAuthUser {
   name: string;
@@ -74,10 +76,15 @@ const fieldInput: React.CSSProperties = {
   outline: "none", boxSizing: "border-box",
 };
 
-export default function ProfileClient({ withingsWeightLbs }: { withingsWeightLbs: number | null }) {
+export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withingsWeightLbs: number | null; isAdmin: boolean }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [saved, setSaved] = useState(false);
   const [oauthUser, setOauthUser] = useState<OAuthUser | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteInProgress, setDeleteInProgress] = useState(false);
 
   useEffect(() => {
     try {
@@ -129,6 +136,25 @@ export default function ProfileClient({ withingsWeightLbs }: { withingsWeightLbs
       return { ...p, dietary: next };
     });
     setSaved(false);
+  }
+
+  function handleDeleteAccount() {
+    if (deleteConfirm !== "DELETE") return;
+    setDeleteError(null);
+    setDeleteInProgress(true);
+    startTransition(async () => {
+      try {
+        localStorage.clear();
+      } catch { /* ignore */ }
+      const result = await deleteMyAccount();
+      if (result.error) {
+        setDeleteError(result.error);
+        setDeleteInProgress(false);
+        return;
+      }
+      await createClient().auth.signOut();
+      router.push("/");
+    });
   }
 
   function save() {
@@ -274,6 +300,63 @@ export default function ProfileClient({ withingsWeightLbs }: { withingsWeightLbs
         >
           Sign out
         </button>
+
+        {/* Admin panel link — only visible to admins */}
+        {isAdmin && (
+          <Link
+            href="/dashboard/settings/admin"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "14px 16px", borderRadius: 12,
+              border: "1px solid var(--color-line)", background: "var(--color-bg-raised)",
+              color: "var(--color-ink)", textDecoration: "none", marginBottom: 8,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 1 }}>Admin panel</div>
+              <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>Manage users and invitations</div>
+            </div>
+            <span style={{ fontSize: 11, color: "var(--color-accent)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>Admin →</span>
+          </Link>
+        )}
+
+        {/* Danger zone */}
+        <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-accent)", borderRadius: 14, padding: "16px", marginBottom: 8 }}>
+          <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--color-accent)", marginBottom: 8 }}>
+            Danger zone
+          </div>
+          <div style={{ fontSize: 13, color: "var(--color-ink-3)", lineHeight: 1.6, marginBottom: 12 }}>
+            Permanently deletes your account and all associated health data. This cannot be undone.
+          </div>
+          <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 5 }}>
+            Type DELETE to confirm
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              value={deleteConfirm}
+              onChange={(e) => { setDeleteConfirm(e.target.value); setDeleteError(null); }}
+              placeholder="DELETE"
+              style={{ flex: 1, padding: "10px 12px", borderRadius: 10, border: "1px solid var(--color-accent)", background: "var(--color-bg-sunk)", color: "var(--color-ink)", fontSize: 13, fontFamily: "inherit", outline: "none" }}
+            />
+            <button
+              onClick={handleDeleteAccount}
+              disabled={deleteConfirm !== "DELETE" || deleteInProgress}
+              style={{
+                padding: "10px 16px", borderRadius: 10, border: "none",
+                background: deleteConfirm === "DELETE" ? "var(--color-accent)" : "var(--color-bg-sunk)",
+                color: deleteConfirm === "DELETE" ? "#fff" : "var(--color-ink-4)",
+                fontSize: 13, fontWeight: 600,
+                cursor: deleteConfirm === "DELETE" ? "pointer" : "default",
+                fontFamily: "inherit", whiteSpace: "nowrap",
+              }}
+            >
+              {deleteInProgress ? "Deleting…" : "Delete account"}
+            </button>
+          </div>
+          {deleteError && (
+            <div style={{ fontSize: 12, color: "var(--color-accent)", marginTop: 8 }}>{deleteError}</div>
+          )}
+        </div>
 
       </div>
     </div>

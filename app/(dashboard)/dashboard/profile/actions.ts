@@ -19,3 +19,13 @@ export async function saveProfileGoals(data: {
   if (error) return { error: error.message };
   return {};
 }
+
+export async function deleteMyAccount(): Promise<{ error?: string }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const userId = await getCurrentUserId();
+  // Deleting from auth.users cascades to profiles and all user data tables
+  const { error } = await db.auth.admin.deleteUser(userId);
+  if (error) return { error: error.message };
+  return {};
+}
