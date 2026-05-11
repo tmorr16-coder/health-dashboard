@@ -136,11 +136,6 @@ export default async function AnalyticsPage() {
     totalUsers = count ?? 0;
   } catch { /* status column may not exist yet */ }
 
-  // Fixed monthly costs from env vars
-  const supabaseCost = parseFloat(process.env.MONTHLY_SUPABASE_COST ?? "0") || 0;
-  const vercelCost = parseFloat(process.env.MONTHLY_VERCEL_COST ?? "0") || 0;
-  const monthlySupportingCost = supabaseCost + vercelCost;
-
   return (
     <div style={{ padding: "20px 20px 0" }}>
       <Link
@@ -168,7 +163,6 @@ export default async function AnalyticsPage() {
         eventTotals={eventTotals}
         activeUsers30d={activeUsers30d}
         totalUsers={totalUsers}
-        monthlySupportingCost={monthlySupportingCost}
         resendCount30d={resendCount30d}
       />
     </div>

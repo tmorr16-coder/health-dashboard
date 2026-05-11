@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 export interface DailyCount {
-  date: string;       // "2025-01-15"
+  date: string;
   event_type: string;
   count: number;
 }
@@ -25,7 +25,6 @@ export interface AnalyticsProps {
   eventTotals: EventTotals[];
   activeUsers30d: number;
   totalUsers: number;
-  monthlySupportingCost: number; // Supabase + Vercel from env vars
   resendCount30d: number;
 }
 
@@ -51,29 +50,27 @@ const EVENT_COLORS: Record<string, string> = {
   integration_request: "#06b6d4",
 };
 
-// Haiku pricing per token
-const HAIKU_INPUT_PER_TOKEN = 0.0000008;   // $0.80 / 1M
+const HAIKU_INPUT_PER_TOKEN  = 0.0000008;  // $0.80 / 1M
 const HAIKU_OUTPUT_PER_TOKEN = 0.000004;   // $4.00 / 1M
-const RESEND_FREE_TIER = 3000;
-const RESEND_PRICE_PER_EMAIL = 0.001; // beyond free tier
+const RESEND_FREE_TIER       = 3000;
+const RESEND_PRICE_PER_EMAIL = 0.001;
 
-function fmt(n: number, decimals = 2) {
-  return n.toFixed(decimals);
-}
+// Alert thresholds
+const ANTHROPIC_ALERT_THRESHOLD = 5;   // $ per month
+const DAILY_CHAT_SPIKE          = 30;  // chats in one day
+const RESEND_WARNING_THRESHOLD  = 2500; // approaching free tier
 
 function fmtCurrency(n: number) {
   if (n < 0.01) return "< $0.01";
-  return `$${fmt(n)}`;
+  return `$${n.toFixed(2)}`;
 }
 
-// Build a map: date → { event_type: count }
 function buildChartData(dailyCounts: DailyCount[]) {
   const dateMap = new Map<string, Record<string, number>>();
   for (const row of dailyCounts) {
     if (!dateMap.has(row.date)) dateMap.set(row.date, {});
     dateMap.get(row.date)![row.event_type] = row.count;
   }
-  // Sort dates
   const dates = Array.from(dateMap.keys()).sort();
   return { dates, dateMap };
 }
@@ -107,19 +104,12 @@ function MiniBarChart({ dates, dateMap, selectedTypes }: BarChartProps) {
         const row = dateMap.get(date) ?? {};
         const total = selectedTypes.reduce((s, t) => s + (row[t] ?? 0), 0);
         const heightPct = (total / maxVal) * 100;
-        const label = date.slice(5); // MM-DD
+        const label = date.slice(5);
         return (
           <div
             key={date}
             title={`${date}: ${total} events`}
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 2,
-              cursor: "default",
-            }}
+            style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "default" }}
           >
             <div
               style={{
@@ -134,9 +124,7 @@ function MiniBarChart({ dates, dateMap, selectedTypes }: BarChartProps) {
               }}
             />
             {dates.length <= 14 && (
-              <span style={{ fontSize: 8, color: "var(--color-ink-4)", whiteSpace: "nowrap" }}>
-                {label}
-              </span>
+              <span style={{ fontSize: 8, color: "var(--color-ink-4)", whiteSpace: "nowrap" }}>{label}</span>
             )}
           </div>
         );
@@ -151,16 +139,14 @@ export default function AnalyticsClient({
   eventTotals,
   activeUsers30d,
   totalUsers,
-  monthlySupportingCost,
   resendCount30d,
 }: AnalyticsProps) {
   const [selectedTypes, setSelectedTypes] = useState<string[]>(["chat"]);
 
   const { dates, dateMap } = buildChartData(dailyCounts);
 
-  // Cost calculations
   const anthropicCost =
-    tokenSummary.tokens_in * HAIKU_INPUT_PER_TOKEN +
+    tokenSummary.tokens_in  * HAIKU_INPUT_PER_TOKEN +
     tokenSummary.tokens_out * HAIKU_OUTPUT_PER_TOKEN;
 
   const resendCost =
@@ -168,7 +154,35 @@ export default function AnalyticsClient({
       ? (resendCount30d - RESEND_FREE_TIER) * RESEND_PRICE_PER_EMAIL
       : 0;
 
-  const totalCost = anthropicCost + resendCost + monthlySupportingCost;
+  const totalCost = anthropicCost + resendCost;
+
+  // Spike detection
+  const peakDailyChats = Math.max(
+    0,
+    ...dates.map((d) => dateMap.get(d)?.["chat"] ?? 0)
+  );
+
+  type Alert = { level: "warn" | "critical"; message: string };
+  const alerts: Alert[] = [];
+
+  if (anthropicCost >= ANTHROPIC_ALERT_THRESHOLD) {
+    alerts.push({
+      level: "critical",
+      message: `Anthropic spend is ${fmtCurrency(anthropicCost)} this month — above the $${ANTHROPIC_ALERT_THRESHOLD} threshold.`,
+    });
+  }
+  if (peakDailyChats >= DAILY_CHAT_SPIKE) {
+    alerts.push({
+      level: "warn",
+      message: `${peakDailyChats} AI chats logged in a single day — unusual for a personal dashboard.`,
+    });
+  }
+  if (resendCount30d >= RESEND_WARNING_THRESHOLD) {
+    alerts.push({
+      level: "warn",
+      message: `${resendCount30d} emails sent this month — approaching Resend's free tier limit of ${RESEND_FREE_TIER.toLocaleString()}.`,
+    });
+  }
 
   function toggleType(t: string) {
     setSelectedTypes((prev) =>
@@ -181,6 +195,27 @@ export default function AnalyticsClient({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20, paddingBottom: 40 }}>
 
+      {/* Alerts */}
+      {alerts.map((a, i) => (
+        <div
+          key={i}
+          style={{
+            background: a.level === "critical" ? "#fff1f0" : "#fffbeb",
+            border: `1px solid ${a.level === "critical" ? "#fca5a5" : "#fcd34d"}`,
+            borderRadius: 12,
+            padding: "12px 16px",
+            fontSize: 13,
+            color: a.level === "critical" ? "#991b1b" : "#78350f",
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 10,
+          }}
+        >
+          <span style={{ fontSize: 16, lineHeight: 1.3 }}>{a.level === "critical" ? "⚠️" : "ℹ️"}</span>
+          {a.message}
+        </div>
+      ))}
+
       {/* Stat row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
         <StatCard label="Total users" value={String(totalUsers)} />
@@ -188,10 +223,10 @@ export default function AnalyticsClient({
         <StatCard label="AI messages (30d)" value={String(tokenSummary.chat_count)} />
       </div>
 
-      {/* TCO section */}
+      {/* Cost section */}
       <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 16, padding: "20px 20px 16px" }}>
         <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 16 }}>
-          Monthly TCO — this month to date
+          Variable costs — this month to date
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
           <CostRow
@@ -201,18 +236,8 @@ export default function AnalyticsClient({
           />
           <CostRow
             label="Resend"
-            amount={fmtCurrency(resendCost)}
-            sub={`${resendCount30d} emails · free ≤${RESEND_FREE_TIER.toLocaleString()}`}
-          />
-          <CostRow
-            label="Supabase"
-            amount={monthlySupportingCost > 0 ? fmtCurrency(monthlySupportingCost / 2) : "—"}
-            sub="from MONTHLY_SUPABASE_COST"
-          />
-          <CostRow
-            label="Vercel"
-            amount={monthlySupportingCost > 0 ? fmtCurrency(monthlySupportingCost / 2) : "—"}
-            sub="from MONTHLY_VERCEL_COST"
+            amount={resendCost > 0 ? fmtCurrency(resendCost) : "Free"}
+            sub={`${resendCount30d} / ${RESEND_FREE_TIER.toLocaleString()} emails`}
           />
         </div>
         <div style={{
@@ -227,11 +252,6 @@ export default function AnalyticsClient({
             {fmtCurrency(totalCost)}
           </span>
         </div>
-        {monthlySupportingCost === 0 && (
-          <p style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 10, lineHeight: 1.5 }}>
-            Set <code>MONTHLY_SUPABASE_COST</code> and <code>MONTHLY_VERCEL_COST</code> env vars to include fixed platform costs.
-          </p>
-        )}
       </div>
 
       {/* Activity chart */}
@@ -239,8 +259,6 @@ export default function AnalyticsClient({
         <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-3)", marginBottom: 12 }}>
           Daily activity — last 30 days
         </div>
-
-        {/* Type filter chips */}
         {allTypes.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
             {allTypes.map((t) => {
@@ -268,7 +286,6 @@ export default function AnalyticsClient({
             })}
           </div>
         )}
-
         <MiniBarChart dates={dates} dateMap={dateMap} selectedTypes={selectedTypes} />
       </div>
 
