@@ -76,6 +76,10 @@ export default async function DashboardPage() {
   const db = createAdminClient() as any;
   const [userId, userName] = await Promise.all([getCurrentUserId(), getCurrentUserName()]);
 
+  // Weight goal from user metadata
+  const { data: { user: authUser } } = await db.auth.admin.getUserById(userId);
+  const targetWeightLbs: number | null = (authUser?.user_metadata?.target_weight_lbs as number | null) ?? null;
+
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const tomorrowStart = new Date(todayStart);
@@ -322,6 +326,7 @@ export default async function DashboardPage() {
       color: "var(--color-accent)",
       points: toTrendPoints(weightRows as RawTrendRow[] | null),
       invertDelta: true,
+      goalValue: targetWeightLbs ?? undefined,
     },
   ];
 

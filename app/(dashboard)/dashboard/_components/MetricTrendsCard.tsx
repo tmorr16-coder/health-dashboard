@@ -13,26 +13,33 @@ export interface TrendMetric {
   points: TrendPoint[];
   /** true = lower is better (weight, resting HR) */
   invertDelta?: boolean;
+  /** Show a dashed goal reference line at this value */
+  goalValue?: number;
 }
 
-function Sparkline({ points, color, height = 40 }: { points: TrendPoint[]; color: string; height?: number }) {
+function Sparkline({ points, color, height = 40, goalValue }: { points: TrendPoint[]; color: string; height?: number; goalValue?: number }) {
   if (points.length < 2) {
     return <div style={{ height }} />;
   }
 
   const vals = points.map((p) => p.value);
-  const min = Math.min(...vals);
-  const max = Math.max(...vals);
+  // Expand range to include goal line if set
+  const allVals = goalValue != null ? [...vals, goalValue] : vals;
+  const min = Math.min(...allVals);
+  const max = Math.max(...allVals);
   const range = max - min || 1;
-  const w = 100; // viewBox units
+  const w = 100;
+
+  const yFor = (v: number) => height - ((v - min) / range) * (height - 4) - 2;
 
   const xs = points.map((_, i) => (i / (points.length - 1)) * w);
-  const ys = vals.map((v) => height - ((v - min) / range) * (height - 4) - 2);
+  const ys = vals.map(yFor);
 
   const path = xs.map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(" ");
-
-  // Fill area under line
   const fillPath = `${path} L${w},${height} L0,${height} Z`;
+
+  const goalY = goalValue != null ? yFor(goalValue) : null;
+  const atGoal = goalValue != null && Math.abs(vals[vals.length - 1] - goalValue) < 0.5;
 
   return (
     <svg
@@ -46,10 +53,7 @@ function Sparkline({ points, color, height = 40 }: { points: TrendPoint[]; color
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path
-        d={fillPath}
-        fill={`url(#grad-${color.replace(/[^a-z0-9]/gi, "")})`}
-      />
+      <path d={fillPath} fill={`url(#grad-${color.replace(/[^a-z0-9]/gi, "")})`} />
       <path
         d={path}
         fill="none"
@@ -59,6 +63,31 @@ function Sparkline({ points, color, height = 40 }: { points: TrendPoint[]; color
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
       />
+      {/* Goal reference line */}
+      {goalY != null && (
+        <g>
+          <line
+            x1={0} y1={goalY.toFixed(1)}
+            x2={w} y2={goalY.toFixed(1)}
+            stroke={atGoal ? "#10b981" : "#e05c3a"}
+            strokeWidth="1"
+            strokeDasharray="3,2"
+            opacity="0.7"
+            vectorEffect="non-scaling-stroke"
+          />
+          <text
+            x={w - 1}
+            y={(goalY - 2).toFixed(1)}
+            fontSize="6"
+            fill={atGoal ? "#10b981" : "#e05c3a"}
+            textAnchor="end"
+            fontFamily="Geist, system-ui"
+            opacity="0.85"
+          >
+            goal
+          </text>
+        </g>
+      )}
       {/* Last point dot */}
       <circle
         cx={xs[xs.length - 1].toFixed(1)}
@@ -72,7 +101,7 @@ function Sparkline({ points, color, height = 40 }: { points: TrendPoint[]; color
 }
 
 function MetricTile({ metric }: { metric: TrendMetric }) {
-  const { points, label, unit, color, invertDelta } = metric;
+  const { points, label, unit, color, invertDelta, goalValue } = metric;
   const latest = points[points.length - 1]?.value;
   const earliest = points[0]?.value;
   const delta = latest != null && earliest != null ? latest - earliest : null;
@@ -115,20 +144,27 @@ function MetricTile({ metric }: { metric: TrendMetric }) {
         )}
       </div>
 
-      <Sparkline points={points} color={color} height={36} />
+      <Sparkline points={points} color={color} height={36} goalValue={goalValue} />
 
-      <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-        <span style={{
-          fontFamily: "var(--font-display)",
-          fontSize: 24,
-          fontWeight: 400,
-          letterSpacing: "-0.02em",
-          lineHeight: 1,
-          color: "var(--color-ink)",
-        }}>
-          {latest != null ? fmtValue(latest) : "—"}
-        </span>
-        <span style={{ fontSize: 10, color: "var(--color-ink-3)" }}>{unit}</span>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
+          <span style={{
+            fontFamily: "var(--font-display)",
+            fontSize: 24,
+            fontWeight: 400,
+            letterSpacing: "-0.02em",
+            lineHeight: 1,
+            color: "var(--color-ink)",
+          }}>
+            {latest != null ? fmtValue(latest) : "—"}
+          </span>
+          <span style={{ fontSize: 10, color: "var(--color-ink-3)" }}>{unit}</span>
+        </div>
+        {goalValue != null && (
+          <span style={{ fontSize: 10, color: "var(--color-ink-4)" }}>
+            goal {fmtValue(goalValue)}{unit}
+          </span>
+        )}
       </div>
     </div>
   );
