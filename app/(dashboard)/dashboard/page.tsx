@@ -9,6 +9,7 @@ import ActivityCard from "./_components/ActivityCard";
 import RecentWorkoutsCard, { type WorkoutRow } from "./_components/RecentWorkoutsCard";
 import ChatWidget from "./_components/ChatWidget";
 import CommunityFeed from "@/app/(dashboard)/_components/CommunityFeed";
+import MetricTrendsCard, { type TrendMetric, type TrendPoint } from "./_components/MetricTrendsCard";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -81,6 +82,8 @@ export default async function DashboardPage() {
   tomorrowStart.setDate(tomorrowStart.getDate() + 1);
   const sevenDaysAgo = new Date(todayStart);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const thirtyDaysAgo = new Date(todayStart);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   const monday    = getMondayOf(todayStart);
   const nextMonday = new Date(monday);
@@ -98,6 +101,10 @@ export default async function DashboardPage() {
     { data: recentWorkoutRows },
     { data: weekSessionRows },
     { data: weekAppleRows },
+    { data: hrvRows },
+    { data: restingHrRows },
+    { data: sleepScoreRows },
+    { data: weightRows },
   ] = await Promise.all([
     // Per-source last sync times
     db.from("apple_health_metrics")
@@ -160,6 +167,33 @@ export default async function DashboardPage() {
       .eq("user_id", userId)
       .gte("timestamp", monday.toISOString())
       .lt("timestamp", nextMonday.toISOString()),
+    // 30-day trend data
+    db.from("apple_health_metrics")
+      .select("timestamp, value")
+      .eq("user_id", userId)
+      .in("metric_name", ["hrv", "HRV", "heart_rate_variability", "HeartRateVariabilitySDNN"])
+      .gte("timestamp", thirtyDaysAgo.toISOString())
+      .order("timestamp", { ascending: true }),
+    db.from("apple_health_metrics")
+      .select("timestamp, value")
+      .eq("user_id", userId)
+      .in("metric_name", ["resting_heart_rate", "Resting Heart Rate", "RestingHeartRate"])
+      .gte("timestamp", thirtyDaysAgo.toISOString())
+      .order("timestamp", { ascending: true }),
+    db.from("apple_health_metrics")
+      .select("timestamp, value")
+      .eq("user_id", userId)
+      .eq("source", "oura")
+      .eq("metric_name", "sleep_score")
+      .gte("timestamp", thirtyDaysAgo.toISOString())
+      .order("timestamp", { ascending: true }),
+    db.from("apple_health_metrics")
+      .select("timestamp, value")
+      .eq("user_id", userId)
+      .eq("source", "withings")
+      .eq("metric_name", "weight")
+      .gte("timestamp", thirtyDaysAgo.toISOString())
+      .order("timestamp", { ascending: true }),
   ]);
 
   // ── Oura scores ───────────────────────────────────────────────────────────
@@ -240,6 +274,56 @@ export default async function DashboardPage() {
     activeDays.add((d.getDay() + 6) % 7);
   });
   const todayIdx = (todayStart.getDay() + 6) % 7;
+
+  // ── 30-day trend metrics ─────────────────────────────────────────────────
+
+  type RawTrendRow = { timestamp: string; value: number };
+
+  function toTrendPoints(rows: RawTrendRow[] | null): TrendPoint[] {
+    if (!rows?.length) return [];
+    // Deduplicate to one value per day (last reading wins)
+    const byDate = new Map<string, number>();
+    for (const r of rows) {
+      const d = r.timestamp.slice(0, 10);
+      byDate.set(d, r.value);
+    }
+    return Array.from(byDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, value]) => ({ date, value }));
+  }
+
+  const trendMetrics: TrendMetric[] = [
+    {
+      key: "hrv",
+      label: "HRV",
+      unit: "ms",
+      color: "var(--color-moss)",
+      points: toTrendPoints(hrvRows as RawTrendRow[] | null),
+    },
+    {
+      key: "restingHr",
+      label: "Resting HR",
+      unit: "bpm",
+      color: "var(--color-slate)",
+      points: toTrendPoints(restingHrRows as RawTrendRow[] | null),
+      invertDelta: true,
+    },
+    {
+      key: "sleep",
+      label: "Sleep Score",
+      unit: "",
+      color: "#6366f1",
+      points: toTrendPoints(sleepScoreRows as RawTrendRow[] | null),
+    },
+    {
+      key: "weight",
+      label: "Weight",
+      unit: "lbs",
+      color: "var(--color-accent)",
+      points: toTrendPoints(weightRows as RawTrendRow[] | null),
+      invertDelta: true,
+    },
+  ];
 
   const today = formatDate(new Date());
 
@@ -536,6 +620,9 @@ export default async function DashboardPage() {
             </Link>
           )}
         </div>
+
+        {/* 30-day trends */}
+        <MetricTrendsCard metrics={trendMetrics} />
 
         {/* Nutrition summary */}
         <Link href="/dashboard/nutrition" style={{ textDecoration: "none" }}>
