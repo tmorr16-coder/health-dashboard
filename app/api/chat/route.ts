@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { logEvent } from "@/lib/usage";
 
 const client = new Anthropic();
 
@@ -80,6 +81,15 @@ export async function POST(req: NextRequest) {
 
   const reply =
     response.content[0].type === "text" ? response.content[0].text : "";
+
+  // Fire-and-forget usage log
+  logEvent({
+    eventType: "chat",
+    userId: user.id,
+    tokensIn: response.usage?.input_tokens,
+    tokensOut: response.usage?.output_tokens,
+    metadata: { model: response.model },
+  });
 
   return NextResponse.json({ reply });
 }

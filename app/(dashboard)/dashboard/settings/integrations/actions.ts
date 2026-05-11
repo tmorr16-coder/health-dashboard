@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { logEvent } from "@/lib/usage";
 
 export async function saveOuraToken(token: string): Promise<{ error?: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -57,7 +58,9 @@ export async function triggerSync(): Promise<{ inserted?: number; error?: string
     const res = await fetch(`${siteUrl}/api/withings/sync?userId=${encodeURIComponent(userId)}`, { headers });
     const json = (await res.json()) as { measurements_inserted?: number; error?: string };
     if (!res.ok) return { error: json.error ?? "Sync failed" };
-    return { inserted: json.measurements_inserted ?? 0 };
+    const inserted = json.measurements_inserted ?? 0;
+    logEvent({ eventType: "withings_sync", userId, metadata: { inserted } });
+    return { inserted };
   } catch (err) {
     return { error: String(err) };
   }
@@ -75,7 +78,9 @@ export async function triggerOuraSync(): Promise<{ inserted?: number; error?: st
     const res = await fetch(`${siteUrl}/api/oura/sync?userId=${encodeURIComponent(userId)}`, { headers });
     const json = (await res.json()) as { metrics_inserted?: number; error?: string };
     if (!res.ok) return { error: json.error ?? "Sync failed" };
-    return { inserted: json.metrics_inserted ?? 0 };
+    const inserted = json.metrics_inserted ?? 0;
+    logEvent({ eventType: "oura_sync", userId, metadata: { inserted } });
+    return { inserted };
   } catch (err) {
     return { error: String(err) };
   }
@@ -103,6 +108,7 @@ export async function requestIntegration(data: {
     description: data.description.trim() || null,
   });
   if (dbError) return { error: dbError.message };
+  logEvent({ eventType: "integration_request", userId, metadata: { integration: data.integration } });
 
   // Email all admins
   if (process.env.RESEND_API_KEY) {

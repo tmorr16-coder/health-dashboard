@@ -4,13 +4,15 @@ import { redirect } from "next/navigation";
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/auth";
+import { logEvent } from "@/lib/usage";
 
-async function sendUserEmail(to: string, subject: string, html: string) {
+async function sendUserEmail(to: string, subject: string, html: string, userId?: string) {
   if (!process.env.RESEND_API_KEY || !to) return;
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
     const from = process.env.RESEND_FROM_EMAIL ?? "noreply@resend.dev";
     await resend.emails.send({ from, to, subject, html });
+    logEvent({ eventType: "email", userId: userId ?? null, metadata: { subject, to } });
   } catch { /* non-fatal */ }
 }
 
@@ -176,6 +178,7 @@ export async function submitSupportTicket(data: {
     description: data.description.trim(),
   });
   if (dbError) return { error: dbError.message };
+  logEvent({ eventType: "support_ticket", userId, metadata: { type: data.type, subject: data.subject } });
 
   // Email all admins
   if (process.env.RESEND_API_KEY) {

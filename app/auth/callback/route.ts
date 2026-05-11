@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Resend } from "resend";
+import { logEvent } from "@/lib/usage";
 
 async function getAdminEmails(db: ReturnType<typeof createAdminClient>): Promise<string[]> {
   try {
@@ -60,6 +61,7 @@ export async function GET(request: Request) {
 
             if (isNewUser) {
               const userName = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email;
+              logEvent({ eventType: "signup", userId: user.id, metadata: { email: user.email } });
               await sendEmail(
                 `New user awaiting approval: ${userName}`,
                 `

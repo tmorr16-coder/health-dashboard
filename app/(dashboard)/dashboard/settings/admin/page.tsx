@@ -149,9 +149,29 @@ export default async function AdminPage() {
         <br />
         panel.
       </div>
-      <div style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 24 }}>
+      <div style={{ fontSize: 13, color: "var(--color-ink-3)", marginBottom: 16 }}>
         Manage users, send invitations, and control access.
       </div>
+
+      <Link
+        href="/dashboard/settings/admin/analytics"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          fontSize: 13,
+          fontWeight: 500,
+          color: "var(--color-ink-3)",
+          textDecoration: "none",
+          background: "var(--color-bg-raised)",
+          border: "1px solid var(--color-line)",
+          borderRadius: 10,
+          padding: "8px 14px",
+          marginBottom: 24,
+        }}
+      >
+        Usage &amp; costs →
+      </Link>
 
       <AdminClient
         users={users}
