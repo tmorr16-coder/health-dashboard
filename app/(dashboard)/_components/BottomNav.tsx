@@ -10,7 +10,7 @@ const TABS = [
   { label: "Today",    href: "/dashboard" },
   { label: "Train",    href: "/dashboard/train" },
   { label: "Eat",      href: "/dashboard/nutrition" },
-  { label: "Progress", href: "/dashboard/progress" },
+  { label: "History",  href: "/dashboard/day" },
   { label: "Health",   href: "/dashboard/medications" },
   { label: "Profile",  href: "/dashboard/profile" },
 ];
