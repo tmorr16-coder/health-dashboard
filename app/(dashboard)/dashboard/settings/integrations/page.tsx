@@ -6,6 +6,7 @@ import { getCurrentUserId } from "@/lib/auth";
 import WithingsCard from "./_components/WithingsCard";
 import OuraCard from "./_components/OuraCard";
 import AppleHealthCard from "./_components/AppleHealthCard";
+import RequestIntegrationCard from "./_components/RequestIntegrationCard";
 
 interface TokenRow {
   updated_at: string;
@@ -165,6 +166,7 @@ export default async function IntegrationsPage({
           tokenConfigured={ouraConfigured}
           lastSyncAt={ouraLastSyncAt}
         />
+        <RequestIntegrationCard />
       </div>
 
     </div>

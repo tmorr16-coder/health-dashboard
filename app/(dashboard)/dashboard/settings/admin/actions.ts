@@ -67,6 +67,19 @@ export async function removeUser(userId: string): Promise<{ error?: string }> {
   return {};
 }
 
+export async function updateIntegrationRequestStatus(
+  id: string,
+  status: "reviewed" | "planned" | "declined"
+): Promise<{ error?: string }> {
+  const { db } = await requireAdmin();
+  const { error } = await db
+    .from("integration_requests")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  return {};
+}
+
 export async function deleteMyAccount(): Promise<{ error?: string }> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;

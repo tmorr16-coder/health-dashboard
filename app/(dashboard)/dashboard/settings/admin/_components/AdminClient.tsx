@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { inviteUser, cancelInvitation, updateUserRole, removeUser } from "../actions";
+import { inviteUser, cancelInvitation, updateUserRole, removeUser, updateIntegrationRequestStatus } from "../actions";
 
 export interface AdminUser {
   id: string;
@@ -19,6 +19,16 @@ export interface Invitation {
   email: string;
   role: "admin" | "standard";
   invitedAt: string;
+}
+
+export interface IntegrationRequest {
+  id: string;
+  userName: string;
+  userEmail: string;
+  integration: string;
+  description: string;
+  status: "pending" | "planned" | "reviewed" | "declined";
+  createdAt: string;
 }
 
 function fmtDate(iso: string): string {
@@ -139,13 +149,15 @@ function UserRow({ user, onRoleChange, onRemove, isPending }: UserRowProps) {
 interface Props {
   users: AdminUser[];
   invitations: Invitation[];
+  integrationRequests: IntegrationRequest[];
 }
 
-export default function AdminClient({ users: initialUsers, invitations: initialInvites }: Props) {
+export default function AdminClient({ users: initialUsers, invitations: initialInvites, integrationRequests: initialRequests }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [users, setUsers] = useState(initialUsers);
   const [invitations, setInvitations] = useState(initialInvites);
+  const [requests, setRequests] = useState(initialRequests);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"standard" | "admin">("standard");
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -189,6 +201,13 @@ export default function AdminClient({ users: initialUsers, invitations: initialI
       setInviteEmail("");
       router.refresh();
       setTimeout(() => setInviteSent(false), 3000);
+    });
+  }
+
+  function handleRequestStatus(id: string, status: "reviewed" | "planned" | "declined") {
+    startTransition(async () => {
+      await updateIntegrationRequestStatus(id, status);
+      setRequests((prev) => prev.filter((r) => r.id !== id));
     });
   }
 
@@ -275,6 +294,63 @@ export default function AdminClient({ users: initialUsers, invitations: initialI
           </button>
         </div>
       </div>
+
+      {/* Integration requests */}
+      {requests.length > 0 && (
+        <div>
+          <div style={sectionLabel}>Integration requests · {requests.length}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {requests.map((req) => (
+              <div key={req.id} style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 12, padding: "12px 14px" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: req.description ? 8 : 10 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--color-accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                    📬
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-ink)" }}>{req.integration}</span>
+                      <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", padding: "2px 7px", borderRadius: 999, background: "var(--color-accent-soft)", color: "var(--color-accent)", border: "1px solid var(--color-accent)" }}>
+                        {req.status}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>
+                      {req.userName || req.userEmail} · {fmtDate(req.createdAt)}
+                    </div>
+                  </div>
+                </div>
+                {req.description && (
+                  <div style={{ fontSize: 12, color: "var(--color-ink-2)", background: "var(--color-bg-sunk)", borderRadius: 8, padding: "8px 10px", marginBottom: 10, lineHeight: 1.5 }}>
+                    {req.description}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    onClick={() => handleRequestStatus(req.id, "planned")}
+                    disabled={isPending}
+                    style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid var(--color-moss)", background: "var(--color-moss-soft)", color: "var(--color-moss)", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    Mark planned
+                  </button>
+                  <button
+                    onClick={() => handleRequestStatus(req.id, "reviewed")}
+                    disabled={isPending}
+                    style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid var(--color-line)", background: "var(--color-bg-sunk)", color: "var(--color-ink-3)", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    onClick={() => handleRequestStatus(req.id, "declined")}
+                    disabled={isPending}
+                    style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid var(--color-line)", background: "transparent", color: "var(--color-accent)", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Pending invitations */}
       {invitations.length > 0 && (

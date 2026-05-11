@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/auth";
-import AdminClient, { type AdminUser, type Invitation } from "./_components/AdminClient";
+import AdminClient, { type AdminUser, type Invitation, type IntegrationRequest } from "./_components/AdminClient";
 
 export default async function AdminPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,6 +66,26 @@ export default async function AdminPage() {
     invitedAt: r.invited_at,
   }));
 
+  // Fetch integration requests (pending + planned, newest first)
+  type ReqRow = { id: string; user_name: string | null; user_email: string | null; integration: string; description: string | null; status: string; created_at: string };
+  let integrationRequests: IntegrationRequest[] = [];
+  try {
+    const { data: reqRows } = await db
+      .from("integration_requests")
+      .select("id, user_name, user_email, integration, description, status, created_at")
+      .in("status", ["pending", "planned"])
+      .order("created_at", { ascending: false });
+    integrationRequests = ((reqRows as ReqRow[]) ?? []).map((r) => ({
+      id: r.id,
+      userName: r.user_name ?? "",
+      userEmail: r.user_email ?? "",
+      integration: r.integration,
+      description: r.description ?? "",
+      status: r.status as IntegrationRequest["status"],
+      createdAt: r.created_at,
+    }));
+  } catch { /* table may not exist yet */ }
+
   return (
     <div style={{ padding: "20px 20px 0" }}>
 
@@ -88,7 +108,7 @@ export default async function AdminPage() {
         Manage users, send invitations, and control access.
       </div>
 
-      <AdminClient users={users} invitations={invitations} />
+      <AdminClient users={users} invitations={invitations} integrationRequests={integrationRequests} />
 
     </div>
   );

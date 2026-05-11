@@ -1,5 +1,6 @@
 "use server";
 
+import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUserId } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
@@ -78,4 +79,81 @@ export async function triggerOuraSync(): Promise<{ inserted?: number; error?: st
   } catch (err) {
     return { error: String(err) };
   }
+}
+
+export async function requestIntegration(data: {
+  integration: string;
+  description: string;
+}): Promise<{ error?: string }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const userId = await getCurrentUserId();
+
+  // Get requesting user's info
+  const { data: authUser } = await db.auth.admin.getUserById(userId);
+  const userEmail = authUser?.user?.email ?? "";
+  const userName = authUser?.user?.user_metadata?.full_name ?? authUser?.user?.user_metadata?.name ?? userEmail;
+
+  // Save request to DB
+  const { error: dbError } = await db.from("integration_requests").insert({
+    user_id: userId,
+    user_email: userEmail,
+    user_name: userName,
+    integration: data.integration.trim(),
+    description: data.description.trim() || null,
+  });
+  if (dbError) return { error: dbError.message };
+
+  // Email all admins
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const { data: adminProfiles } = await db
+        .from("profiles")
+        .select("email")
+        .eq("role", "admin");
+
+      type ProfileRow = { email: string | null };
+      const adminEmails: string[] = ((adminProfiles as ProfileRow[]) ?? [])
+        .map((p) => p.email)
+        .filter((e): e is string => !!e);
+
+      if (adminEmails.length > 0) {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const fromEmail = process.env.RESEND_FROM_EMAIL ?? "noreply@resend.dev";
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+
+        await resend.emails.send({
+          from: fromEmail,
+          to: adminEmails,
+          subject: `Integration request: ${data.integration}`,
+          html: `
+            <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; color: #1a1a1a;">
+              <h2 style="margin: 0 0 6px; font-size: 20px;">New integration request</h2>
+              <p style="margin: 0 0 20px; color: #666; font-size: 14px;">Someone wants a new integration added to the health dashboard.</p>
+
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px;">
+                <tr>
+                  <td style="padding: 10px 14px; background: #f5f5f3; border-radius: 6px 6px 0 0; font-weight: 600; width: 120px;">Integration</td>
+                  <td style="padding: 10px 14px; background: #f5f5f3; border-radius: 6px 6px 0 0;">${data.integration}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px 14px; background: #fafaf8; font-weight: 600;">Requested by</td>
+                  <td style="padding: 10px 14px; background: #fafaf8;">${userName} &lt;${userEmail}&gt;</td>
+                </tr>
+                ${data.description ? `
+                <tr>
+                  <td style="padding: 10px 14px; background: #f5f5f3; font-weight: 600; border-radius: 0 0 6px 6px;">Notes</td>
+                  <td style="padding: 10px 14px; background: #f5f5f3; border-radius: 0 0 6px 6px;">${data.description}</td>
+                </tr>` : ""}
+              </table>
+
+              ${siteUrl ? `<a href="${siteUrl}/dashboard/settings/admin" style="display: inline-block; padding: 10px 18px; background: #1a1a1a; color: #fff; text-decoration: none; border-radius: 8px; font-size: 13px; font-weight: 600;">View in admin panel →</a>` : ""}
+            </div>
+          `,
+        });
+      }
+    } catch { /* email failure is non-fatal */ }
+  }
+
+  return {};
 }
