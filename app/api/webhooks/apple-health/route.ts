@@ -142,7 +142,11 @@ export async function POST(request: NextRequest) {
           metric_name: group.name,
           value,
           unit:        pt.units ?? group.units,
-          source:      pt.source ?? "apple_health",
+          // Always tag rows coming through this webhook as 'apple_health' so
+          // the integrations page and dashboard queries match. The device-level
+          // source (e.g. "Terry's iPhone") from Health Auto Export isn't useful
+          // for our queries — we identify the integration by the webhook itself.
+          source:      "apple_health",
         };
       })
       .filter((r): r is NonNullable<typeof r> => r !== null);
