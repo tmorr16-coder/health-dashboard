@@ -134,6 +134,11 @@ export async function POST(request: NextRequest) {
 
     const rows = group.data
       .map((pt) => {
+        // Skip rows that originated from Oura or Withings devices — we already
+        // ingest those via dedicated API integrations and don't want duplicates.
+        const src = (pt.source ?? "").toLowerCase();
+        if (src.includes("oura") || src.includes("withings")) return null;
+
         const value = extractValue(pt);
         if (value === null) return null;
         return {
