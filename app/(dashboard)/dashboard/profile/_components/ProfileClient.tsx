@@ -4,9 +4,7 @@ import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
-import Link from "next/link";
-import { saveProfileGoals, deleteMyAccount } from "../actions";
-import { submitSupportTicket } from "../../settings/admin/actions";
+import { saveProfileGoals, deleteMyAccount, submitSupportTicket } from "../actions";
 
 interface OAuthUser {
   name: string;
@@ -365,10 +363,10 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
           )}
         </div>
 
-        {/* Admin panel link — only visible to admins */}
+        {/* Admin panel link — only visible to admins. Lives on the hub now. */}
         {isAdmin && (
-          <Link
-            href="/dashboard/settings/admin"
+          <a
+            href="https://morrisai.family/home/admin"
             style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
               padding: "14px 16px", borderRadius: 12,
@@ -378,10 +376,10 @@ export default function ProfileClient({ withingsWeightLbs, isAdmin }: { withings
           >
             <div>
               <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 1 }}>Admin panel</div>
-              <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>Manage users and invitations</div>
+              <div style={{ fontSize: 12, color: "var(--color-ink-3)" }}>Manage users and access on morrisai.family</div>
             </div>
             <span style={{ fontSize: 11, color: "var(--color-accent)", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>Admin →</span>
-          </Link>
+          </a>
         )}
 
         {/* Danger zone */}

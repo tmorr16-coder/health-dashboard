@@ -153,7 +153,7 @@ export async function requestIntegration(data: {
                 </tr>` : ""}
               </table>
 
-              ${siteUrl ? `<a href="${siteUrl}/dashboard/settings/admin" style="display: inline-block; padding: 10px 18px; background: #1a1a1a; color: #fff; text-decoration: none; border-radius: 8px; font-size: 13px; font-weight: 600;">View in admin panel →</a>` : ""}
+              <a href="https://morrisai.family/home/admin" style="display: inline-block; padding: 10px 18px; background: #1a1a1a; color: #fff; text-decoration: none; border-radius: 8px; font-size: 13px; font-weight: 600;">View in admin panel →</a>
             </div>
           `,
         });
