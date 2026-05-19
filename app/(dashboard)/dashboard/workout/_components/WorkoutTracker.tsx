@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { EXERCISE_LIBRARY, suggestNext, type SetLog } from "../exercise-library";
+import { updateSet } from "../actions";
 import { createWorkoutSession, saveSet, finishSession, saveCardioBlocks, deleteSession, type CardioBlock } from "../actions";
 import PostWorkoutSummary from "./PostWorkoutSummary";
 
@@ -65,6 +66,11 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
   const [paused,         setPaused]         = useState(false);
   const [showMenu,       setShowMenu]       = useState(false);
   const [confirmDelete,  setConfirmDelete]  = useState(false);
+
+  // Inline set editing
+  const [editingSet,     setEditingSet]     = useState<{ exIdx: number; setIdx: number } | null>(null);
+  const [editReps,       setEditReps]       = useState("");
+  const [editWeight,     setEditWeight]     = useState("");
 
   // Stretching + cardio extras
   const [warmup,         setWarmup]         = useState(initialWarmup   ?? false);
@@ -173,6 +179,32 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
       if (extras.length) await saveCardioBlocks(extras);
       router.push("/dashboard");
     });
+  };
+
+  const handleEditSet = (exIdx: number, setIdx: number) => {
+    const log = setLogs[exIdx][setIdx];
+    if (!log) return;
+    setEditingSet({ exIdx, setIdx });
+    setEditReps(String(log.reps));
+    setEditWeight(String(log.weight));
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingSet) return;
+    const { exIdx, setIdx } = editingSet;
+    const reps = parseInt(editReps) || 0;
+    const weight = parseFloat(editWeight) || 0;
+    if (reps === 0 || weight === 0) { setEditingSet(null); return; }
+    const existing = setLogs[exIdx][setIdx];
+    const newLogs = setLogs.map((row) => [...row]);
+    newLogs[exIdx][setIdx] = { reps, weight, rpe: existing?.rpe ?? 7 };
+    setSetLogs(newLogs);
+    setEditingSet(null);
+    if (session?.exerciseIds[exIdx]) {
+      startTransition(async () => {
+        await updateSet({ exerciseId: session!.exerciseIds[exIdx], setNumber: setIdx + 1, reps, weight, rpe: existing?.rpe ?? 7 });
+      });
+    }
   };
 
   const handleAddCardio = () => {
@@ -522,15 +554,46 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
 
                   {/* Log or placeholder */}
                   {isDone ? (
-                    <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
-                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: "var(--color-ink)", flexShrink: 0 }}>
-                        {log!.reps} × {log!.weight}lb
-                      </span>
-                      <span style={{ fontSize: 11, color: "var(--color-ink-4)", flexShrink: 0 }}>@ {log!.rpe}</span>
-                      {isPR && (
-                        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--color-moss)", flexShrink: 0 }}>↑ PR</span>
-                      )}
-                    </div>
+                    editingSet?.exIdx === currentExIdx && editingSet?.setIdx === i ? (
+                      /* Inline edit mode */
+                      <div style={{ flex: 1, display: "flex", gap: 6, alignItems: "center" }}>
+                        <input
+                          type="number"
+                          value={editReps}
+                          onChange={(e) => setEditReps(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleSaveEdit(); if (e.key === "Escape") setEditingSet(null); }}
+                          placeholder="reps"
+                          style={{ width: 54, padding: "4px 6px", borderRadius: 6, border: "1.5px solid var(--color-accent)", fontSize: 13, fontFamily: "var(--font-mono)", textAlign: "center", outline: "none" }}
+                          autoFocus
+                        />
+                        <span style={{ fontSize: 11, color: "var(--color-ink-4)" }}>×</span>
+                        <input
+                          type="number"
+                          value={editWeight}
+                          onChange={(e) => setEditWeight(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleSaveEdit(); if (e.key === "Escape") setEditingSet(null); }}
+                          placeholder="lbs"
+                          style={{ width: 60, padding: "4px 6px", borderRadius: 6, border: "1.5px solid var(--color-accent)", fontSize: 13, fontFamily: "var(--font-mono)", textAlign: "center", outline: "none" }}
+                        />
+                        <button onClick={handleSaveEdit} style={{ padding: "4px 8px", borderRadius: 6, border: "none", background: "var(--color-accent)", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>✓</button>
+                        <button onClick={() => setEditingSet(null)} style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid var(--color-line)", background: "transparent", color: "var(--color-ink-3)", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>✕</button>
+                      </div>
+                    ) : (
+                      <div
+                        style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6, overflow: "hidden", cursor: "pointer" }}
+                        onClick={() => handleEditSet(currentExIdx, i)}
+                        title="Tap to edit"
+                      >
+                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: "var(--color-ink)", flexShrink: 0 }}>
+                          {log!.reps} × {log!.weight}lb
+                        </span>
+                        <span style={{ fontSize: 11, color: "var(--color-ink-4)", flexShrink: 0 }}>@ {log!.rpe}</span>
+                        {isPR && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--color-moss)", flexShrink: 0 }}>↑ PR</span>
+                        )}
+                        <span style={{ fontSize: 9, color: "var(--color-ink-4)", marginLeft: "auto", flexShrink: 0 }}>edit</span>
+                      </div>
+                    )
                   ) : (
                     <div style={{ flex: 1 }}>
                       {isActive ? (
@@ -933,6 +996,18 @@ export default function WorkoutTracker({ initialExercises, initialWarmup, initia
             />
           </div>
           <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => setRestRemaining((r) => Math.max(0, r - 15))}
+              style={{
+                flex: 1, padding: "10px 0", borderRadius: 10,
+                border: "1px solid var(--color-line)",
+                background: "var(--color-bg-sunk)",
+                color: "var(--color-ink-3)", fontSize: 12, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              −15s
+            </button>
             {[15, 30].map((s) => (
               <button
                 key={s}

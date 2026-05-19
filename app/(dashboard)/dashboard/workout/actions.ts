@@ -85,6 +85,26 @@ export async function saveSet(data: {
   return {};
 }
 
+export async function updateSet(data: {
+  exerciseId: string;
+  setNumber: number;
+  reps: number;
+  weight: number;
+  rpe: number;
+}): Promise<{ error?: string }> {
+  const db: AnyClient = createAdminClient();
+  const userId = await getCurrentUserId();
+
+  const { error } = await db.from("sets")
+    .update({ reps_actual: data.reps, weight_actual: data.weight, rpe: data.rpe })
+    .eq("exercise_id", data.exerciseId)
+    .eq("set_number", data.setNumber)
+    .eq("user_id", userId);
+
+  if (error) return { error: error.message };
+  return {};
+}
+
 export async function finishSession(
   sessionId: string,
   durationMin: number

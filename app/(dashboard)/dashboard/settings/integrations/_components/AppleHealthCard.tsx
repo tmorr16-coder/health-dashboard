@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 interface Props {
   configured: boolean;
@@ -29,42 +30,42 @@ export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, 
     });
   }
 
-  const secret = process.env.NEXT_PUBLIC_APPLE_HEALTH_SECRET_HINT ?? "";
+  const hasData = metricsCount > 0 || workoutsCount > 0;
 
   return (
-    <div style={{ background: "var(--color-bg-raised)", border: "1px solid var(--color-line)", borderRadius: 14, overflow: "hidden" }}>
+    <div style={{ background: "var(--color-bg-raised)", border: `1.5px solid ${hasData ? "var(--color-moss)" : "var(--color-line)"}`, borderRadius: 14, overflow: "hidden" }}>
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderBottom: "1px solid var(--color-line)" }}>
-        <div style={{ fontSize: 24, lineHeight: 1 }}>⌚</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: hasData ? "var(--color-moss-soft)" : undefined, borderBottom: "1px solid var(--color-line)" }}>
+        <div style={{ fontSize: 26, lineHeight: 1 }}>⌚</div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 500, color: "var(--color-ink)" }}>Apple Watch</div>
-          <div style={{ fontSize: 11, color: "var(--color-ink-4)", marginTop: 1 }}>Steps · workouts · heart rate · activity</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)" }}>Apple Watch</div>
+          <div style={{ fontSize: 11, color: "var(--color-ink-3)", marginTop: 1 }}>Steps · workouts · heart rate · HRV · activity</div>
         </div>
         <div style={{
-          fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase",
-          padding: "4px 10px", borderRadius: 999, whiteSpace: "nowrap",
-          background: configured ? "var(--color-moss-soft)" : "var(--color-bg-sunk)",
-          color: configured ? "var(--color-moss)" : "var(--color-ink-4)",
-          border: `1px solid ${configured ? "var(--color-moss)" : "var(--color-line)"}`,
+          fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+          padding: "5px 12px", borderRadius: 999, whiteSpace: "nowrap",
+          background: hasData ? "var(--color-moss)" : "var(--color-bg-sunk)",
+          color: hasData ? "#fff" : "var(--color-ink-4)",
+          border: `1px solid ${hasData ? "var(--color-moss)" : "var(--color-line)"}`,
         }}>
-          {configured ? "Connected" : "Not connected"}
+          {hasData ? "✓ Active" : "Not connected"}
         </div>
       </div>
 
-      {/* Stats — only when data exists */}
-      {configured && (metricsCount > 0 || workoutsCount > 0) && (
-        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--color-line)" }}>
+      {/* Stats — prominent when data exists */}
+      {hasData && (
+        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--color-line)", background: "var(--color-bg)" }}>
           {[
-            { label: "Metrics",  value: metricsCount.toLocaleString() },
-            { label: "Workouts", value: workoutsCount.toLocaleString() },
-            { label: "Last sync", value: lastSyncAt ? relativeTime(lastSyncAt) : "Never" },
-          ].map(({ label, value }, i, arr) => (
-            <div key={label} style={{ flex: 1, padding: "12px 14px", borderRight: i < arr.length - 1 ? "1px solid var(--color-line)" : undefined }}>
-              <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 3 }}>
+            { label: "Metrics synced",  value: metricsCount.toLocaleString(), mono: true },
+            { label: "Workouts", value: workoutsCount.toLocaleString(), mono: true },
+            { label: "Last sync", value: lastSyncAt ? relativeTime(lastSyncAt) : "Never", mono: false },
+          ].map(({ label, value, mono }, i, arr) => (
+            <div key={label} style={{ flex: 1, padding: "14px 14px", borderRight: i < arr.length - 1 ? "1px solid var(--color-line)" : undefined }}>
+              <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 4 }}>
                 {label}
               </div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-ink)", fontFamily: (label === "Metrics" || label === "Workouts") ? "var(--font-mono)" : "inherit" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "var(--color-moss)", fontFamily: mono ? "var(--font-mono)" : "inherit" }}>
                 {value}
               </div>
             </div>
@@ -72,25 +73,39 @@ export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, 
         </div>
       )}
 
-      {/* Setup instructions */}
+      {/* View in dashboard link when active */}
+      {hasData && (
+        <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--color-line)", background: "var(--color-bg)" }}>
+          <Link
+            href="/dashboard/progress"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              fontSize: 12, fontWeight: 600, color: "var(--color-moss)",
+              textDecoration: "none",
+            }}
+          >
+            View health trends →
+          </Link>
+        </div>
+      )}
+
+      {/* Setup / webhook */}
       <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.6 }}>
-          {configured
-            ? "Data syncs automatically via the Health Auto Export app on your iPhone."
+          {hasData
+            ? "Data syncs automatically via the Health Auto Export app. Your Apple Watch sends metrics as they arrive."
             : "Install Health Auto Export on your iPhone and point it at your personal URL below."}
         </div>
 
-        {/* Steps */}
-        {!configured && (
+        {!hasData && (
           <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--color-ink-3)", lineHeight: 1.8, display: "flex", flexDirection: "column", gap: 2 }}>
             <li>Install <span style={{ color: "var(--color-ink-2)", fontWeight: 500 }}>Health Auto Export</span> from the App Store.</li>
             <li>Open the app → Automations → REST API → add a new endpoint.</li>
             <li>Paste your personal URL below as the endpoint URL.</li>
-            <li>Set the <span style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>api-key</span> header to the shared secret (provided by your admin).</li>
+            <li>Set the <span style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>api-key</span> header to the shared secret (from your admin).</li>
           </ol>
         )}
 
-        {/* Personal webhook URL */}
         <div>
           <div style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--color-ink-4)", marginBottom: 5 }}>
             Your personal webhook URL
@@ -111,7 +126,7 @@ export default function AppleHealthCard({ configured, lastSyncAt, metricsCount, 
               fontSize: 12, fontWeight: 500, cursor: "pointer", fontFamily: "inherit",
               whiteSpace: "nowrap", flexShrink: 0, transition: "all 150ms",
             }}>
-              {copied ? "Copied ✓" : "Copy"}
+              {copied ? "✓ Copied" : "Copy"}
             </button>
           </div>
         </div>
