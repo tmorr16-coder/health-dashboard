@@ -21,12 +21,6 @@ const SCORE_FALLBACKS = [
 
 const WEEK_DAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
-const TODAY_WORKOUT = {
-  name:     "Lower Body Power",
-  duration: "45–55 min",
-  muscles:  ["Quads", "Glutes", "Hamstrings", "Calves"],
-};
-
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function relativeTime(isoTs: string): string {
@@ -400,119 +394,7 @@ export default async function DashboardPage() {
       {/* ── Cards ────────────────────────────────────────────────────────── */}
       <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
 
-        {/* Quick-start workout */}
-        <div
-          style={{
-            background: "var(--color-ink)",
-            borderRadius: 14,
-            padding: "18px 18px 0",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 9,
-              fontWeight: 600,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: "rgba(244,241,236,0.45)",
-              marginBottom: 6,
-            }}
-          >
-            Today&apos;s workout
-          </div>
-          <div
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: 26,
-              fontWeight: 400,
-              letterSpacing: "-0.01em",
-              color: "var(--color-bg)",
-              lineHeight: 1.1,
-              marginBottom: 12,
-            }}
-          >
-            {TODAY_WORKOUT.name}
-          </div>
-
-          {/* Muscle chips */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
-            {TODAY_WORKOUT.muscles.map((m) => (
-              <span
-                key={m}
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: 20,
-                  background: "rgba(244,241,236,0.10)",
-                  border: "1px solid rgba(244,241,236,0.18)",
-                  fontSize: 11,
-                  fontWeight: 500,
-                  color: "rgba(244,241,236,0.75)",
-                }}
-              >
-                {m}
-              </span>
-            ))}
-            <span
-              style={{
-                padding: "4px 10px",
-                borderRadius: 20,
-                background: "transparent",
-                fontSize: 11,
-                color: "rgba(244,241,236,0.40)",
-              }}
-            >
-              {TODAY_WORKOUT.duration}
-            </span>
-          </div>
-
-          {/* Action bar */}
-          <div
-            style={{
-              display: "flex",
-              gap: 0,
-              margin: "0 -18px",
-              borderTop: "1px solid rgba(244,241,236,0.12)",
-            }}
-          >
-            <Link
-              href="/dashboard/workout"
-              style={{
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "14px 18px",
-                background: "var(--color-accent)",
-                color: "#fff",
-                textDecoration: "none",
-                fontSize: 14,
-                fontWeight: 700,
-                gap: 6,
-              }}
-            >
-              ▸ Start Workout
-            </Link>
-            <Link
-              href="/dashboard/workout/builder"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "14px 20px",
-                background: "rgba(244,241,236,0.08)",
-                color: "rgba(244,241,236,0.65)",
-                textDecoration: "none",
-                fontSize: 13,
-                fontWeight: 500,
-                whiteSpace: "nowrap",
-                borderLeft: "1px solid rgba(244,241,236,0.12)",
-              }}
-            >
-              Customize →
-            </Link>
-          </div>
-        </div>
+        {/* Quick-start workout — replaced by Train page */}
 
         {/* This week */}
         <div
