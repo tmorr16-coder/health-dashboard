@@ -79,7 +79,7 @@ export default function QuickLogPage() {
   }
 
   return (
-    <div style={{ padding: "20px 20px 0", maxWidth: 480, margin: "0 auto" }}>
+    <div style={{ padding: "20px 20px 100px", maxWidth: 480, margin: "0 auto" }}>
 
       {/* Back link */}
       <Link
