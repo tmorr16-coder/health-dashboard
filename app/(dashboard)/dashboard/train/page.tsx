@@ -296,44 +296,30 @@ export default async function TrainPage() {
         </Link>
       </div>
 
-      {/* Quick log + Build your own */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
-        <Link href="/dashboard/workout/builder" style={{ textDecoration: "none" }}>
-          <div
-            style={{
-              background: "var(--color-bg-raised)",
-              border: "1px solid var(--color-line)",
-              borderRadius: 14,
-              padding: "14px 16px",
-              height: "100%",
-              boxSizing: "border-box",
-            }}
-          >
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                background: "var(--color-accent-soft)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 20,
-                color: "var(--color-accent)",
-                marginBottom: 8,
-              }}
-            >
-              +
-            </div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", marginBottom: 2 }}>
-              Build your own
-            </div>
-            <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
-              Custom workout
-            </div>
-          </div>
-        </Link>
+      {/* Custom workout — same visual weight as Start Workout */}
+      <Link
+        href="/dashboard/workout/builder"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+          width: "100%",
+          padding: "14px 18px",
+          background: "var(--color-accent)",
+          color: "#fff",
+          textDecoration: "none",
+          fontSize: 14,
+          fontWeight: 600,
+          borderRadius: 14,
+          marginBottom: 10,
+        }}
+      >
+        + Custom Workout
+      </Link>
 
+      {/* Quick log */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginBottom: 20 }}>
         <Link href="/dashboard/workout/log" style={{ textDecoration: "none" }}>
           <div
             style={{
@@ -341,30 +327,33 @@ export default async function TrainPage() {
               border: "1px solid var(--color-line)",
               borderRadius: 14,
               padding: "14px 16px",
-              height: "100%",
-              boxSizing: "border-box",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
             }}
           >
             <div
               style={{
-                width: 40,
-                height: 40,
+                width: 36,
+                height: 36,
                 borderRadius: 10,
                 background: "var(--color-bg-sunk)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: 18,
-                marginBottom: 8,
+                flexShrink: 0,
               }}
             >
               ✓
             </div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", marginBottom: 2 }}>
-              Quick log
-            </div>
-            <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
-              Log today&apos;s workout
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--color-ink)", marginBottom: 1 }}>
+                Quick log
+              </div>
+              <div style={{ fontSize: 11, color: "var(--color-ink-4)" }}>
+                Log today&apos;s workout
+              </div>
             </div>
           </div>
         </Link>
