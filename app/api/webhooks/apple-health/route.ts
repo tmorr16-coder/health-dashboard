@@ -63,6 +63,32 @@ function extractValue(point: MetricPoint): number | null {
   return null;
 }
 
+// Normalize Health Auto Export metric names to canonical forms used by the widget.
+function normalizeMetricName(name: string): string {
+  const lower = name.toLowerCase().trim();
+
+  // Weight variants
+  if (["weight", "bodymass", "body mass", "hkquantitytypeidentifierbodymass"].includes(lower)) return "weight";
+
+  // Heart Rate Variability variants
+  if (["hrv", "heart_rate_variability", "heart rate variability", "heartratevariabilitysdnn"].includes(lower)) return "hrv";
+
+  // Resting Heart Rate variants
+  if (["resting_heart_rate", "resting heart rate", "restingheartrate"].includes(lower)) return "resting_heart_rate";
+
+  // Heart Rate variants (if sent)
+  if (["heart_rate", "heart rate", "heartrate", "hr"].includes(lower)) return "heart_rate";
+
+  // Steps variants
+  if (["steps", "step count"].includes(lower)) return "steps";
+
+  // Calories variants
+  if (["calories", "active energy", "energy burned"].includes(lower)) return "calories";
+
+  // Return original name if no match (fallback)
+  return name;
+}
+
 // Health Auto Export exports distance in km or mi; schema stores meters.
 function toMeters(qty: number, units: string): number {
   switch (units.toLowerCase()) {
@@ -144,7 +170,7 @@ export async function POST(request: NextRequest) {
         return {
           user_id:     userId,
           timestamp:   pt.date,
-          metric_name: group.name,
+          metric_name: normalizeMetricName(group.name),
           value,
           unit:        pt.units ?? group.units,
           // Always tag rows coming through this webhook as 'apple_health' so
