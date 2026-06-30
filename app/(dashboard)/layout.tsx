@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserId } from "@/lib/auth";
-import BottomNav from "./_components/BottomNav";
 import PlatformMenu from "@/components/PlatformMenu";
 
 export default async function DashboardLayout({
@@ -50,10 +49,9 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div style={{ paddingBottom: 72 }}>
+    <div style={{ paddingBottom: 100 }}>
       <PlatformMenu currentApp="health" user={menuUser} />
       {children}
-      <BottomNav />
     </div>
   );
 }
