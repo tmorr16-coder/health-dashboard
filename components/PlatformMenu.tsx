@@ -7,11 +7,13 @@ import BottomNav from "./BottomNav";
 
 const NAV = [
   { key: "today",  label: "Today",       href: "/home",               accessKeys: [] as string[] },
-  { key: "family", label: "Family",      href: "/home",               accessKeys: [] as string[] },
+  { key: "family", label: "Family",      href: "/home/family",        accessKeys: [] as string[] },
   { key: "kids",   label: "Kids",        href: "/student-success",    accessKeys: ["student-success"] },
   { key: "me",     label: "Me",          href: "/health",             accessKeys: ["health"] },
   { key: "money",  label: "Money",       href: "/finance/dashboard",  accessKeys: ["finance", "investments"] },
-  { key: "ask",    label: "Ask Morris",  href: "/home",               accessKeys: [] as string[] },
+  { key: "career", label: "Career",      href: "/career",             accessKeys: ["career"] },
+  { key: "bible",  label: "Bible",       href: "/bible/dashboard",    accessKeys: ["bible"] },
+  { key: "ask",    label: "Ask Morris",  href: "/home/ask",           accessKeys: [] as string[] },
 ];
 
 export interface MenuUser {
@@ -24,10 +26,13 @@ export interface MenuUser {
 
 function activeKeyFromApp(currentApp: string): string {
   if (currentApp === "hub") return "today";
+  if (currentApp === "family") return "family";
+  if (currentApp === "ask") return "ask";
   if (currentApp === "health") return "me";
   if (currentApp === "finance" || currentApp === "investments") return "money";
   if (currentApp === "student-success") return "kids";
-  // bible and career have no top-level nav tab — return empty so nothing is highlighted
+  if (currentApp === "career") return "career";
+  if (currentApp === "bible") return "bible";
   return "";
 }
 
@@ -35,7 +40,7 @@ export default function PlatformMenu({
   currentApp,
   user,
 }: {
-  currentApp: "hub" | "health" | "finance" | "investments" | "student-success" | "bible" | "career";
+  currentApp: "hub" | "family" | "ask" | "health" | "finance" | "investments" | "student-success" | "bible" | "career";
   user?: MenuUser | null;
 }) {
   const activeKey = activeKeyFromApp(currentApp);
@@ -89,8 +94,8 @@ export default function PlatformMenu({
             <span style={{ fontStyle: "italic", color: "var(--color-ink-3)" }}>.family</span>
           </a>
 
-          {/* Desktop nav — hidden on mobile */}
-          <div className="hidden md:flex" style={{ alignItems: "center", gap: 2, flex: 1 }}>
+          {/* Desktop nav — visible on md+, hidden on mobile via globals.css */}
+          <div className="nav-desktop-items" style={{ alignItems: "center", gap: 2, flex: 1 }}>
             <nav role="navigation" aria-label="Main navigation" style={{ display: "flex", alignItems: "center", gap: 2 }}>
               {visibleNav.map((item) => {
                 const active = item.key === activeKey;
@@ -105,7 +110,7 @@ export default function PlatformMenu({
                       fontSize: 13,
                       fontFamily: "var(--font-geist, system-ui), sans-serif",
                       fontWeight: active ? 600 : 500,
-                      color: active ? "var(--color-ink)" : "var(--color-ink-3)",
+                      color: active ? "var(--color-ink)" : "var(--color-ink-2)",
                       textDecoration: "none",
                       background: active ? "rgba(0,0,0,0.06)" : "transparent",
                       transition: "background 100ms, color 100ms",
@@ -119,14 +124,14 @@ export default function PlatformMenu({
             </nav>
           </div>
 
-          {/* Flex spacer on mobile */}
-          <div className="flex-1 md:hidden" />
+          {/* Flex spacer on mobile — pushes profile to the right */}
+          <div className="nav-mobile-spacer" />
 
           {/* Right side */}
           {user && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
               {/* QuickAdd reminder — desktop only */}
-              <div className="hidden md:block">
+              <div className="nav-desktop-items">
                 <QuickAddReminder sourceApp={currentApp} />
               </div>
               {/* Profile dropdown */}
